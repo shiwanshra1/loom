@@ -15,6 +15,10 @@ import {
   Castle,
   UserRound as MentorIcon,
   PartyPopper,
+  Users,
+  Layers,
+  CalendarClock,
+  Search,
   type LucideIcon,
 } from 'lucide-react';
 import { Role } from '@forge-loom/shared-types';
@@ -38,10 +42,18 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: 'Mentor', path: '/student/mentor', icon: MentorIcon },
     { label: 'Events', path: '/student/events', icon: PartyPopper },
   ],
-  [Role.Mentor]: [{ label: 'Dashboard', path: ROLE_HOME_PATH[Role.Mentor], icon: Home }],
+  [Role.Mentor]: [
+    { label: 'Dashboard', path: '/mentor', icon: Home },
+    { label: 'Students', path: '/mentor/students', icon: Users },
+    { label: 'Teams', path: '/mentor/teams', icon: Layers },
+    { label: 'Sessions', path: '/mentor/sessions', icon: CalendarClock },
+  ],
   [Role.Trainer]: [{ label: 'Dashboard', path: ROLE_HOME_PATH[Role.Trainer], icon: Presentation }],
   [Role.Speaker]: [{ label: 'Sessions', path: ROLE_HOME_PATH[Role.Speaker], icon: Mic }],
-  [Role.Hr]: [{ label: 'Dashboard', path: ROLE_HOME_PATH[Role.Hr], icon: Briefcase }],
+  [Role.Hr]: [
+    { label: 'Dashboard', path: ROLE_HOME_PATH[Role.Hr], icon: Briefcase },
+    { label: 'Talent Pool', path: '/hr/talent-pool', icon: Search },
+  ],
   [Role.Sponsor]: [
     { label: 'Dashboard', path: ROLE_HOME_PATH[Role.Sponsor], icon: HeartHandshake },
   ],

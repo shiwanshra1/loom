@@ -52,3 +52,40 @@
 **Docker troubleshooting:** Even after reboot, `docker ps` failed with "Docker Desktop is unable to start." Diagnosed via `wsl -l -v` → zero WSL distros registered (Docker never got to create its internal `docker-desktop`/`docker-desktop-data` distros). Fix: killed all Docker Desktop processes and relaunched the app fresh — it then successfully created its WSL distros and the engine came up on its own within ~30s, no user GUI interaction needed after all.
 **Delivered:** `docker compose -f infra/docker-compose.yml up -d` → mongo/redis/minio all healthy. `npm run seed` → all 11 role accounts created successfully. Started the API server (`npm run dev:server`, port 4000) — connected to Mongo/Redis with no errors. **Verified a real login end-to-end via curl** (`student1@forgeloom.dev` / `test1234`) — got back a real JWT access token + httpOnly refresh cookie. The stack is genuinely live now: client on :5173, API on :4000, Mongo/Redis/MinIO in Docker.
 **Open questions / next steps:** Tell the user the register error should be gone now that the API is actually running — worth having them retry in the browser. Phase C (Mentor role dashboard) is next.
+
+## 2026-08-09 (Pushed to GitHub)
+
+**Requested:** "now lets push everything to this repo https://github.com/shiwanshra1/loom.git"
+**Delivered:** Initialized git (wasn't a repo before), verified the remote was empty first (`git ls-remote` — no refs) so nothing could be clobbered. Excluded `.claude/settings.local.json` from the commit and added it to `.gitignore` (personal per-machine tool-permission cache, not project config). Verified no `.env`/`.env.local` or build artifacts were staged — only `.env.example` files. Committed everything and pushed to `main`. Push authenticated automatically via an already-available credential helper on this machine, no token setup needed.
+**Repo:** https://github.com/shiwanshra1/loom, branch `main`.
+
+## 2026-08-09 (Phase C — Mentor dashboard)
+
+**Requested:** "alright, now lets start next phase."
+**Delivered — Phase C complete, scoped to Dashboard/Students/Teams/Sessions as disclosed earlier (Courses/Reports/Feedback/Notifications for Mentor deferred, same pattern as Student's deferred items):**
+- **Dashboard** (`/mentor`): single page with a Team View / Mentee View toggle, reconciling the two dashboard variants in the source PDFs (stat cards, Today's Sessions, My Teams, Quick Actions, Students Requiring Attention, Progress Snapshot donut, Notifications / vs. mentee stats, My Mentees, Upcoming Session highlight, quote card) rather than building two separate routes.
+- **Students** (`/mentor/students`): list (filterable by On Track/At Risk/Not Started) + profile drill-in (course progress, upcoming session, feedback history with star ratings).
+- **Teams** (`/mentor/teams`): list + detail (current sprint, problem statement, trainer, member roster).
+- **Sessions** (`/mentor/sessions`): list + detail (agenda) + a working "Schedule Session" form that adds a new mock session into local state (team dropdown pulls live from the Teams data).
+All on typed mock data in `features/mentor/{types,mockData,hooks}.ts`, same pattern as Student's Phase B.
+**Verified:** typecheck, lint (0 errors, same pre-existing AuthContext warning), full build, Prettier pass, curl smoke-test of all 4 new routes (200s) — **and, since the backend is genuinely live now, a real login as `mentor1@forgeloom.dev` confirming `role: "mentor"` comes back correctly, so `RequireRole` will route it straight to `/mentor`.**
+**Open questions / next steps:** Phase D (remaining 9 roles, text-spec only, no visuals) is next per the original phase plan.
+
+## 2026-08-09 (Phase D — remaining 9 roles)
+
+**Requested:** "yes, use same theme and design philosophy and similar layout" — go-ahead for Phase D with explicit instruction to keep visual consistency with Student/Mentor.
+**Scope decision (disclosed):** Since none of these 9 roles have a render.pdf visual reference (wireframes.md text-spec only), built ONE consolidated dashboard page per role presenting that role's wireframe bullets as card sections — not deep multi-page list+detail drill-ins like Student/Mentor got. Exception: HR also got a dedicated Talent Pool page (`/hr/talent-pool`) since wireframes.md explicitly flags it as "the important one — build with pagination + search from day one."
+**Delivered — all 9 roles, each on typed mock data in `features/{role}/data.ts`:**
+- Trainer (`/trainer`): stats, assigned students, course cards, assignment submissions with a working inline grading flow, teams connection.
+- Speaker (`/speaker`): sessions list+detail (Upcoming/Past), post-a-topic form, Connect HR directory.
+- HR (`/hr` + `/hr/talent-pool`): company profile, upcoming events, post-opportunity form; Talent Pool has live search/domain-filter/min-score-slider + "Load More" pagination + profile drill-in with Shortlist/Send Message actions.
+- Sponsor (`/sponsor`): events filterable by college, colleges directory, book-a-meet form.
+- College Admin (`/college`): stat cards, programs, faculty, a small CSS bar chart for placement stats, host-event form.
+- Community Leader (`/community`): host-event form with type selector, member invite + roster, feed.
+- Media Partner (`/media`): events with a working request-access toggle, calendar-access blurb, history.
+- Member (`/member`): lightweight feed + events with working Register buttons.
+- Forge Admin (`/admin`): national stats, searchable user management table with working Suspend/Reinstate, cohort phase management with a working Advance-phase action.
+**Bug caught and fixed before it shipped:** first draft of the router wired all 9 roles through a `<RoleSection>` wrapper *component* — react-router v6's `<Routes>` extracts its config by statically walking the JSX tree for literal `<Route>`/`<Fragment>` elements, so wrapping `<Route>` in another component breaks that traversal (it only tolerates Fragments, not arbitrary components, as pass-through). Fixed by making `roleSection` a plain function that returns a `<Route>` element directly instead of a JSX component — no headless browser available this session to catch this at runtime, so this was caught by reasoning through react-router's actual `createRoutesFromChildren` source rather than by testing; verification was typecheck+lint+build+curl smoke-test as before.
+**Verified:** typecheck, lint (0 errors — also fixed a new `react-hooks/exhaustive-deps` warning that appeared in the Admin page along the way), full build, Prettier pass, curl smoke-test of all 10 new routes (200s), and confirmed `trainer1`/`hr1`/`admin1` seeded accounts log in with the correct roles against the live backend.
+**All 11 roles now have a real dashboard.** Every role in the app is click-through navigable end to end (auth is fully real; all dashboard content beyond Student/Mentor's core flows is mock data pending the Phase 2+ backend).
+**Open questions / next steps:** No further UI phase was pre-planned — next backend milestone per the original roadmap is Phase 2 (colleges/cohorts/courses/teams/attendance), which is what the mock data across every dashboard is standing in for.
