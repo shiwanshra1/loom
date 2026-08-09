@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+coverage/
+
+.env
+.env.local
+.env.production
+
+*.log
+.DS_Store
+
+.claude/settings.local.json
