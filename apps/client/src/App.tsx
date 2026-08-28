@@ -31,6 +31,8 @@ import { DashboardPage as CommunityDashboardPage } from './pages/community/Dashb
 import { DashboardPage as MediaDashboardPage } from './pages/media/DashboardPage';
 import { DashboardPage as MemberDashboardPage } from './pages/member/DashboardPage';
 import { DashboardPage as AdminDashboardPage } from './pages/admin/DashboardPage';
+import { CourseListPage } from './pages/course-admin/CourseListPage';
+import { CourseEditorPage } from './pages/course-admin/CourseEditorPage';
 
 function RootRedirect() {
   const { status, user } = useAuth();
@@ -121,6 +123,15 @@ export function App() {
               {roleSection(Role.MediaPartner, <Route index element={<MediaDashboardPage />} />)}
               {roleSection(Role.Member, <Route index element={<MemberDashboardPage />} />)}
               {roleSection(Role.ForgeAdmin, <Route index element={<AdminDashboardPage />} />)}
+
+              {roleSection(
+                Role.CourseAdmin,
+                <>
+                  <Route index element={<CourseListPage />} />
+                  <Route path="courses/new" element={<CourseEditorPage />} />
+                  <Route path="courses/:id/edit" element={<CourseEditorPage />} />
+                </>
+              )}
             </Route>
           </Route>
 

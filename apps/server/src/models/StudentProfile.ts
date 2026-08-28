@@ -40,4 +40,7 @@ const studentProfileSchema = new Schema<StudentProfileDocument>(
 // Talent Pool scoping/filter index per architecture doc §6.1.
 studentProfileSchema.index({ collegeId: 1, domain: 1, builderScore: -1 });
 
-export const StudentProfileModel = model<StudentProfileDocument>('StudentProfile', studentProfileSchema);
+export const StudentProfileModel = model<StudentProfileDocument>(
+  'StudentProfile',
+  studentProfileSchema
+);

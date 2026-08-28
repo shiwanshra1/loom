@@ -20,4 +20,7 @@ const speakerProfileSchema = new Schema<SpeakerProfileDocument>(
   { timestamps: true }
 );
 
-export const SpeakerProfileModel = model<SpeakerProfileDocument>('SpeakerProfile', speakerProfileSchema);
+export const SpeakerProfileModel = model<SpeakerProfileDocument>(
+  'SpeakerProfile',
+  speakerProfileSchema
+);

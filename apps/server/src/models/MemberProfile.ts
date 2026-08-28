@@ -16,4 +16,7 @@ const memberProfileSchema = new Schema<MemberProfileDocument>(
   { timestamps: true }
 );
 
-export const MemberProfileModel = model<MemberProfileDocument>('MemberProfile', memberProfileSchema);
+export const MemberProfileModel = model<MemberProfileDocument>(
+  'MemberProfile',
+  memberProfileSchema
+);

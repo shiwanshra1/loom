@@ -20,4 +20,7 @@ const trainerProfileSchema = new Schema<TrainerProfileDocument>(
   { timestamps: true }
 );
 
-export const TrainerProfileModel = model<TrainerProfileDocument>('TrainerProfile', trainerProfileSchema);
+export const TrainerProfileModel = model<TrainerProfileDocument>(
+  'TrainerProfile',
+  trainerProfileSchema
+);

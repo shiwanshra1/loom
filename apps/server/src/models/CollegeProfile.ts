@@ -18,4 +18,7 @@ const collegeProfileSchema = new Schema<CollegeProfileDocument>(
   { timestamps: true }
 );
 
-export const CollegeProfileModel = model<CollegeProfileDocument>('CollegeProfile', collegeProfileSchema);
+export const CollegeProfileModel = model<CollegeProfileDocument>(
+  'CollegeProfile',
+  collegeProfileSchema
+);

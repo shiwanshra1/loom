@@ -9,3 +9,5 @@ export * from './CollegeProfile.js';
 export * from './CommunityLeaderProfile.js';
 export * from './MediaPartnerProfile.js';
 export * from './MemberProfile.js';
+export * from './CourseAdminProfile.js';
+export * from './Course.js';

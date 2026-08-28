@@ -3,7 +3,11 @@ import type { Role } from '@forge-loom/shared-types';
 import { UserModel, type UserDocument } from '../../models/User.js';
 import { hashPassword, comparePassword } from '../../utils/password.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
-import { storeRefreshToken, isRefreshTokenValid, revokeRefreshToken } from './refreshToken.store.js';
+import {
+  storeRefreshToken,
+  isRefreshTokenValid,
+  revokeRefreshToken,
+} from './refreshToken.store.js';
 import { createProfileForRole } from './profileFactory.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { RegisterInput, LoginInput } from './auth.validation.js';
@@ -52,7 +56,9 @@ export async function registerUser(
   return { user, tokens };
 }
 
-export async function loginUser(input: LoginInput): Promise<{ user: UserDocument; tokens: IssuedTokens }> {
+export async function loginUser(
+  input: LoginInput
+): Promise<{ user: UserDocument; tokens: IssuedTokens }> {
   const user = await UserModel.findOne({ email: input.email });
   if (!user) {
     throw new ApiError(401, 'Invalid email or password');

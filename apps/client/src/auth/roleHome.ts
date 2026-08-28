@@ -13,6 +13,7 @@ export const ROLE_HOME_PATH: Record<Role, string> = {
   [Role.MediaPartner]: '/media',
   [Role.Member]: '/member',
   [Role.ForgeAdmin]: '/admin',
+  [Role.CourseAdmin]: '/course-admin',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -27,4 +28,5 @@ export const ROLE_LABELS: Record<Role, string> = {
   [Role.MediaPartner]: 'Media Partner',
   [Role.Member]: 'Member',
   [Role.ForgeAdmin]: 'Forge Admin',
+  [Role.CourseAdmin]: 'Course Admin',
 };

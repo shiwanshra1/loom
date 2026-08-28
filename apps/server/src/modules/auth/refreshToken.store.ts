@@ -14,12 +14,20 @@ function refreshKey(userId: string, version: number): string {
 // Storing one hash per (userId, version) — not per token — is what makes rotation
 // work: issuing a new refresh token overwrites the old one's hash, so the old
 // token silently stops matching even though it hasn't expired yet.
-export async function storeRefreshToken(userId: string, version: number, token: string): Promise<void> {
+export async function storeRefreshToken(
+  userId: string,
+  version: number,
+  token: string
+): Promise<void> {
   const ttlSeconds = parseDurationToSeconds(env.jwt.refreshExpiry);
   await redis.set(refreshKey(userId, version), hashToken(token), 'EX', ttlSeconds);
 }
 
-export async function isRefreshTokenValid(userId: string, version: number, token: string): Promise<boolean> {
+export async function isRefreshTokenValid(
+  userId: string,
+  version: number,
+  token: string
+): Promise<boolean> {
   const stored = await redis.get(refreshKey(userId, version));
   return stored !== null && stored === hashToken(token);
 }

@@ -28,7 +28,9 @@ export function verifyAccessToken(token: string): AuthenticatedUser {
 }
 
 export function signRefreshToken(payload: RefreshTokenPayload): string {
-  return jwt.sign(payload, env.jwt.refreshSecret, { expiresIn: asExpiresIn(env.jwt.refreshExpiry) });
+  return jwt.sign(payload, env.jwt.refreshSecret, {
+    expiresIn: asExpiresIn(env.jwt.refreshExpiry),
+  });
 }
 
 export function verifyRefreshToken(token: string): RefreshTokenPayload {

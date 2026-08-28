@@ -19,6 +19,7 @@ import {
   Layers,
   CalendarClock,
   Search,
+  GraduationCap,
   type LucideIcon,
 } from 'lucide-react';
 import { Role } from '@forge-loom/shared-types';
@@ -70,4 +71,5 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   [Role.ForgeAdmin]: [
     { label: 'Dashboard', path: ROLE_HOME_PATH[Role.ForgeAdmin], icon: ShieldCheck },
   ],
+  [Role.CourseAdmin]: [{ label: 'My Courses', path: '/course-admin', icon: GraduationCap }],
 };

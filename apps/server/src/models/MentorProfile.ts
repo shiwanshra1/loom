@@ -22,4 +22,7 @@ const mentorProfileSchema = new Schema<MentorProfileDocument>(
   { timestamps: true }
 );
 
-export const MentorProfileModel = model<MentorProfileDocument>('MentorProfile', mentorProfileSchema);
+export const MentorProfileModel = model<MentorProfileDocument>(
+  'MentorProfile',
+  mentorProfileSchema
+);

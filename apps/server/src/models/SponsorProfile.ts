@@ -18,4 +18,7 @@ const sponsorProfileSchema = new Schema<SponsorProfileDocument>(
   { timestamps: true }
 );
 
-export const SponsorProfileModel = model<SponsorProfileDocument>('SponsorProfile', sponsorProfileSchema);
+export const SponsorProfileModel = model<SponsorProfileDocument>(
+  'SponsorProfile',
+  sponsorProfileSchema
+);

@@ -5,6 +5,7 @@ import morgan from 'morgan';
 import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { courseRouter } from './modules/courses/course.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -24,6 +25,7 @@ export function createApp(): Express {
   });
 
   app.use('/api/auth', authRouter);
+  app.use('/api/courses', courseRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

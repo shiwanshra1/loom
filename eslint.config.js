@@ -17,6 +17,11 @@ export default tseslint.config(
         ...globals.browser,
       },
     },
+    rules: {
+      // Standard convention for intentionally-unused params (e.g. Express
+      // error-handler middleware's required (err, req, res, next) signature).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+    },
   },
   {
     files: ['apps/client/**/*.{ts,tsx}'],

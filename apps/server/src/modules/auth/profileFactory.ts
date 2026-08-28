@@ -11,6 +11,7 @@ import {
   CommunityLeaderProfileModel,
   MediaPartnerProfileModel,
   MemberProfileModel,
+  CourseAdminProfileModel,
 } from '../../models/index.js';
 
 /**
@@ -57,6 +58,9 @@ export async function createProfileForRole(
       return;
     case Role.ForgeAdmin:
       // No profile collection — internal superuser, never self-registered anyway.
+      return;
+    case Role.CourseAdmin:
+      await CourseAdminProfileModel.create({ userId, name: displayName });
       return;
   }
 }
