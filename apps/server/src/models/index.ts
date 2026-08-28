@@ -12,3 +12,6 @@ export * from './MemberProfile.js';
 export * from './CourseAdminProfile.js';
 export * from './Course.js';
 export * from './Enrollment.js';
+export * from './CourseSession.js';
+export * from './AttendanceRecord.js';
+export * from './VideoProgress.js';

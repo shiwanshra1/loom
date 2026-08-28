@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { BookOpen, CheckCircle2, Clock, PlayCircle } from 'lucide-react';
 import { useStudentActivity, useStudentCourses } from '../../features/student/hooks';
 import type { CourseStatus } from '../../features/student/types';
@@ -81,9 +82,10 @@ export function CoursesPage() {
               {filteredCourses.map((course) => {
                 const badge = STATUS_BADGE[course.status];
                 return (
-                  <div
+                  <Link
                     key={course.id}
-                    className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
+                    to={`/student/courses/${course.id}`}
+                    className="flex items-center gap-4 py-4 first:pt-0 last:pb-0 hover:bg-slate-50"
                   >
                     <span
                       className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white ${course.accentClassName}`}
@@ -108,7 +110,7 @@ export function CoursesPage() {
                         </span>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>

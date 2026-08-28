@@ -16,7 +16,9 @@ export function toCourseDto(course: CourseDocument): CourseDto {
       dayNumber: day.dayNumber,
       title: day.title,
       description: day.description,
+      youtubeVideoId: day.youtubeVideoId ?? undefined,
     })),
+    trainerId: course.trainerId ? course.trainerId.toString() : null,
     createdAt: course.createdAt.toISOString(),
     updatedAt: course.updatedAt.toISOString(),
   };

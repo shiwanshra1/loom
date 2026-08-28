@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AttendanceHistoryEntryDto,
   CourseDeliveryMode,
+  CourseDto,
   CourseListPageDto,
   EnrollmentDto,
+  VideoProgressDto,
 } from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
 import {
@@ -191,5 +194,57 @@ export function useCalendarEntries() {
   return useQuery({
     queryKey: ['student', 'calendar-entries'],
     queryFn: () => Promise.resolve(MOCK_CALENDAR_ENTRIES),
+  });
+}
+
+export function useCourseDetail(courseId: string | undefined) {
+  return useQuery({
+    queryKey: ['student', 'course', courseId],
+    queryFn: () =>
+      apiRequest<{ course: CourseDto }>(`/api/courses/${courseId}`).then((r) => r.course),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useCourseAttendance(studentId: string | undefined, courseId: string | undefined) {
+  return useQuery({
+    queryKey: ['student', 'attendance', courseId],
+    queryFn: () =>
+      apiRequest<{ attendance: AttendanceHistoryEntryDto[] }>(
+        `/api/students/${studentId}/attendance?courseId=${courseId}`
+      ).then((r) => r.attendance),
+    enabled: Boolean(studentId) && Boolean(courseId),
+  });
+}
+
+export function useVideoProgress(courseId: string | undefined) {
+  return useQuery({
+    queryKey: ['student', 'video-progress', courseId],
+    queryFn: () =>
+      apiRequest<{ progress: VideoProgressDto[] }>(`/api/video-progress?courseId=${courseId}`).then(
+        (r) => r.progress
+      ),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useUpdateVideoProgress() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      courseId: string;
+      dayNumber: number;
+      positionSeconds: number;
+      durationSeconds: number;
+    }) =>
+      apiRequest<{ progress: VideoProgressDto }>('/api/video-progress', {
+        method: 'POST',
+        body: input,
+      }).then((r) => r.progress),
+    onSuccess: (progress) => {
+      void queryClient.invalidateQueries({
+        queryKey: ['student', 'video-progress', progress.courseId],
+      });
+    },
   });
 }

@@ -11,6 +11,7 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { HomePage } from './pages/student/HomePage';
 import { CoursesPage } from './pages/student/CoursesPage';
 import { CatalogPage } from './pages/student/CatalogPage';
+import { CourseDetailPage } from './pages/student/CourseDetailPage';
 import { CalendarPage } from './pages/student/CalendarPage';
 import { TrackerPage } from './pages/student/TrackerPage';
 import { MentorSessionsPage } from './pages/student/MentorSessionsPage';
@@ -23,6 +24,7 @@ import { StudentsPage as MentorStudentsPage } from './pages/mentor/StudentsPage'
 import { TeamsPage as MentorTeamsPage } from './pages/mentor/TeamsPage';
 import { SessionsPage as MentorSessionsRolePage } from './pages/mentor/SessionsPage';
 import { DashboardPage as TrainerDashboardPage } from './pages/trainer/DashboardPage';
+import { CourseSessionsPage as TrainerCourseSessionsPage } from './pages/trainer/CourseSessionsPage';
 import { DashboardPage as SpeakerDashboardPage } from './pages/speaker/DashboardPage';
 import { DashboardPage as HrDashboardPage } from './pages/hr/DashboardPage';
 import { TalentPoolPage } from './pages/hr/TalentPoolPage';
@@ -84,6 +86,7 @@ export function App() {
                 <>
                   <Route index element={<HomePage />} />
                   <Route path="courses" element={<CoursesPage />} />
+                  <Route path="courses/:id" element={<CourseDetailPage />} />
                   <Route path="catalog" element={<CatalogPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="tracker" element={<TrackerPage />} />
@@ -105,7 +108,13 @@ export function App() {
                 </>
               )}
 
-              {roleSection(Role.Trainer, <Route index element={<TrainerDashboardPage />} />)}
+              {roleSection(
+                Role.Trainer,
+                <>
+                  <Route index element={<TrainerDashboardPage />} />
+                  <Route path="courses/:id" element={<TrainerCourseSessionsPage />} />
+                </>
+              )}
               {roleSection(Role.Speaker, <Route index element={<SpeakerDashboardPage />} />)}
 
               {roleSection(

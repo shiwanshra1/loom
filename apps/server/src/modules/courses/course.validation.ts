@@ -4,6 +4,7 @@ export const syllabusDaySchema = z.object({
   dayNumber: z.number().int().positive(),
   title: z.string().min(1),
   description: z.string().optional(),
+  youtubeVideoId: z.string().optional(),
 });
 
 export const createCourseSchema = z.object({
@@ -15,6 +16,10 @@ export const createCourseSchema = z.object({
   price: z.number().min(0),
   currency: z.string().min(1).optional(),
   syllabus: z.array(syllabusDaySchema).optional(),
+  // Resolved server-side to a Trainer's userId — omit to leave the current
+  // assignment (if any) unchanged; there's no dedicated faculty picker UI
+  // yet (that's Phase 6), so an email is the minimal input for now.
+  trainerEmail: z.string().email().optional(),
 });
 
 export const updateCourseSchema = createCourseSchema.partial();

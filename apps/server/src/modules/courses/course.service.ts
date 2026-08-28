@@ -1,6 +1,8 @@
 import { Types } from 'mongoose';
+import { Role } from '@forge-loom/shared-types';
 import { CourseAdminProfileModel } from '../../models/CourseAdminProfile.js';
 import { CourseModel, type CourseDocument, type CourseStatus } from '../../models/Course.js';
+import { UserModel } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type {
   CreateCourseInput,
@@ -37,6 +39,14 @@ async function getOwnedCourse(courseId: string, courseAdminProfileId: Types.Obje
   return course;
 }
 
+async function resolveTrainerId(trainerEmail: string): Promise<Types.ObjectId> {
+  const trainer = await UserModel.findOne({ email: trainerEmail, role: Role.Trainer });
+  if (!trainer) {
+    throw new ApiError(400, `No trainer account found for ${trainerEmail}`);
+  }
+  return trainer._id;
+}
+
 export async function createCourse(
   userId: string,
   input: CreateCourseInput
@@ -47,8 +57,10 @@ export async function createCourse(
     dayNumber: day.dayNumber,
     title: day.title,
     description: day.description,
-    videoRef: null,
+    youtubeVideoId: day.youtubeVideoId ?? null,
   }));
+
+  const trainerId = input.trainerEmail ? await resolveTrainerId(input.trainerEmail) : null;
 
   return CourseModel.create({
     title: input.title,
@@ -61,6 +73,7 @@ export async function createCourse(
     currency: input.currency ?? 'INR',
     status: 'draft',
     syllabus,
+    trainerId,
   });
 }
 
@@ -84,8 +97,11 @@ export async function updateCourse(
       dayNumber: day.dayNumber,
       title: day.title,
       description: day.description,
-      videoRef: null,
+      youtubeVideoId: day.youtubeVideoId ?? null,
     }));
+  }
+  if (input.trainerEmail !== undefined) {
+    course.trainerId = await resolveTrainerId(input.trainerEmail);
   }
 
   await course.save();
@@ -113,6 +129,10 @@ export async function updateCourseStatus(
 export async function listMyCourses(userId: string): Promise<CourseDocument[]> {
   const profile = await getOwnCourseAdminProfile(userId);
   return CourseModel.find({ createdBy: profile._id }).sort({ createdAt: -1 });
+}
+
+export async function listTeachingCourses(trainerUserId: string): Promise<CourseDocument[]> {
+  return CourseModel.find({ trainerId: trainerUserId }).sort({ createdAt: -1 });
 }
 
 export interface CourseListPage {

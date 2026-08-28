@@ -1,16 +1,24 @@
 import { useState } from 'react';
-import { BookOpenCheck, CalendarClock, ClipboardCheck, Layers, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
-  useTrainerCourses,
+  BookOpenCheck,
+  CalendarClock,
+  ClipboardCheck,
+  Layers,
+  Laptop,
+  MapPin,
+  Users,
+} from 'lucide-react';
+import {
   useTrainerStats,
   useTrainerStudents,
   useTrainerSubmissions,
   useTrainerTeams,
 } from '../../features/trainer/data';
+import { useTeachingCourses } from '../../features/trainer/hooks';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { Badge } from '../../components/ui/Badge';
-import { ProgressBar } from '../../components/ui/ProgressBar';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { PageLoading } from '../../components/ui/PageLoading';
@@ -18,7 +26,7 @@ import { PageLoading } from '../../components/ui/PageLoading';
 export function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useTrainerStats();
   const { data: students, isLoading: studentsLoading } = useTrainerStudents();
-  const { data: courses, isLoading: coursesLoading } = useTrainerCourses();
+  const { data: courses, isLoading: coursesLoading } = useTeachingCourses();
   const { data: submissions, isLoading: submissionsLoading } = useTrainerSubmissions();
   const { data: teams, isLoading: teamsLoading } = useTrainerTeams();
 
@@ -85,16 +93,30 @@ export function DashboardPage() {
         </Card>
 
         <Card>
-          <h2 className="mb-4 font-semibold text-slate-900">Course Cards</h2>
-          <div className="flex flex-col gap-4">
+          <h2 className="mb-4 font-semibold text-slate-900">Courses You Teach</h2>
+          <div className="flex flex-col gap-3">
+            {courses?.length === 0 && (
+              <p className="text-sm text-slate-400">
+                No courses assigned to you yet — a Course Admin needs to assign you as the trainer.
+              </p>
+            )}
             {courses?.map((course) => (
-              <div key={course.id} className="rounded-xl border border-slate-200 p-3">
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="font-medium text-slate-800">{course.name}</span>
-                  <span className="text-slate-500">{course.studentsEnrolled} students</span>
+              <Link
+                key={course.id}
+                to={`/trainer/courses/${course.id}`}
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 hover:bg-slate-50"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{course.title}</p>
+                  <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                    {course.deliveryMode === 'online' ? <Laptop size={12} /> : <MapPin size={12} />}
+                    {course.deliveryMode === 'online' ? 'Online' : 'Offline'}
+                  </p>
                 </div>
-                <ProgressBar percent={course.progressPercent} />
-              </div>
+                <Badge tone={course.status === 'published' ? 'green' : 'slate'}>
+                  {course.status}
+                </Badge>
+              </Link>
             ))}
           </div>
         </Card>

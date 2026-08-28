@@ -61,6 +61,12 @@ export async function list(req: Request, res: Response): Promise<void> {
   res.json({ courses: page.courses.map(toCourseDto), nextCursor: page.nextCursor });
 }
 
+export async function listTeaching(req: Request, res: Response): Promise<void> {
+  const user = requireUser(req);
+  const courses = await courseService.listTeachingCourses(user.userId);
+  res.json({ courses: courses.map(toCourseDto) });
+}
+
 export async function getOne(req: Request, res: Response): Promise<void> {
   const user = requireUser(req);
   const course = await courseService.getCourseById(requireParam(req, 'id'), user);

@@ -36,6 +36,7 @@ export function CourseEditorPage() {
   const [price, setPrice] = useState('0');
   const [currency, setCurrency] = useState('INR');
   const [syllabus, setSyllabus] = useState<SyllabusDayDto[]>([]);
+  const [trainerEmail, setTrainerEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -96,6 +97,7 @@ export function CourseEditorPage() {
       price: Number(price),
       currency,
       syllabus,
+      trainerEmail: trainerEmail || undefined,
     };
 
     try {
@@ -210,6 +212,25 @@ export function CourseEditorPage() {
             <label className="mb-1 block text-sm font-medium text-slate-700">Price</label>
             <Input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
+          <div className="sm:col-span-2">
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Assigned Trainer (email)
+            </label>
+            <Input
+              type="email"
+              value={trainerEmail}
+              onChange={(e) => setTrainerEmail(e.target.value)}
+              placeholder={
+                existing?.trainerId
+                  ? 'Trainer assigned — enter an email to reassign'
+                  : 'e.g. trainer1@forgeloom.dev'
+              }
+            />
+            <p className="mt-1 text-xs text-slate-400">
+              Only offline courses generate a session calendar for the assigned trainer to take
+              attendance on. Leave blank to keep the current assignment.
+            </p>
+          </div>
         </div>
       </Card>
 
@@ -266,10 +287,18 @@ export function CourseEditorPage() {
                 onChange={(e) => updateDay(index, { title: e.target.value })}
               />
               <Input
+                className={deliveryMode === 'online' ? 'mb-2' : ''}
                 placeholder="Day description (optional)"
                 value={day.description ?? ''}
                 onChange={(e) => updateDay(index, { description: e.target.value })}
               />
+              {deliveryMode === 'online' && (
+                <Input
+                  placeholder="YouTube video ID (unlisted, not private)"
+                  value={day.youtubeVideoId ?? ''}
+                  onChange={(e) => updateDay(index, { youtubeVideoId: e.target.value })}
+                />
+              )}
             </div>
           ))}
         </div>

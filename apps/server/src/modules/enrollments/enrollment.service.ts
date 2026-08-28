@@ -2,6 +2,7 @@ import { CourseModel, type CourseDocument } from '../../models/Course.js';
 import { EnrollmentModel, type EnrollmentDocument } from '../../models/Enrollment.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { processPayment } from './payment.stub.js';
+import { ensureSessionsForCourse } from '../sessions/session.service.js';
 
 export interface EnrollmentWithCourse {
   enrollment: EnrollmentDocument;
@@ -44,6 +45,11 @@ export async function createEnrollment(
   enrollment.status = 'active';
   enrollment.paymentRef = payment.paymentRef;
   await enrollment.save();
+
+  // Offline courses get their session calendar materialized on first
+  // enrollment (Phase 3) — a no-op for online courses and for any course
+  // that already has its sessions generated.
+  await ensureSessionsForCourse(course);
 
   return { enrollment, course };
 }

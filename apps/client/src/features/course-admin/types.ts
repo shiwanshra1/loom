@@ -9,6 +9,7 @@ export interface CreateCourseInput {
   price: number;
   currency?: string;
   syllabus?: SyllabusDayDto[];
+  trainerEmail?: string;
 }
 
 export type UpdateCourseInput = Partial<CreateCourseInput>;

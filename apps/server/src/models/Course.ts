@@ -7,7 +7,8 @@ export interface SyllabusDay {
   dayNumber: number;
   title: string;
   description?: string;
-  videoRef: Types.ObjectId | null;
+  // Online-only (Phase 4): the unlisted YouTube video for this day.
+  youtubeVideoId: string | null;
 }
 
 export interface CourseDocument {
@@ -22,6 +23,9 @@ export interface CourseDocument {
   currency: string;
   status: CourseStatus;
   syllabus: SyllabusDay[];
+  // The Trainer assigned to teach this course (Phase 3) — null until a
+  // course_admin assigns one via `trainerEmail` on create/update.
+  trainerId: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,7 +39,7 @@ const syllabusDaySchema = new Schema<SyllabusDay>(
     dayNumber: { type: Number, required: true },
     title: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
-    videoRef: { type: Schema.Types.ObjectId, default: null },
+    youtubeVideoId: { type: String, default: null },
   },
   { _id: false }
 );
@@ -62,6 +66,7 @@ const courseSchema = new Schema<CourseDocument>(
       index: true,
     },
     syllabus: { type: [syllabusDaySchema], default: [] },
+    trainerId: { type: Schema.Types.ObjectId, ref: 'User', default: null, index: true },
   },
   { timestamps: true }
 );
