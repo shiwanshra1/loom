@@ -7,8 +7,6 @@ import type {
   LearningStreak,
   MentorSession,
   MentorSummary,
-  ProblemStatement,
-  Sprint,
   StudentStats,
   UpcomingEvent,
   WeeklyProgress,
@@ -18,8 +16,6 @@ import type {
 // (courses, Citadel, sessions) hasn't been built yet. Swapping this out for a
 // real fetch later is a matter of changing the queryFn in hooks.ts, not the
 // page components themselves.
-
-export const MOCK_CITADEL_DAYS_REMAINING = 24;
 
 export const MOCK_STATS: StudentStats = {
   coursesEnrolled: 6,
@@ -158,169 +154,6 @@ export const MOCK_STREAK: LearningStreak = {
   days: 7,
   weekPattern: [true, true, true, true, true, true, false],
 };
-
-export const MOCK_SPRINTS: Sprint[] = [
-  {
-    id: 'sprint-1',
-    cycleNumber: 1,
-    title: 'Sprint Cycle 1',
-    phase: 'Ideation & Research',
-    status: 'completed',
-    progressPercent: 100,
-    dateRangeLabel: '10 Apr – 24 Apr 2026',
-    teamMembers: 4,
-    tasks: [
-      {
-        title: 'Setup project repository & environment',
-        status: 'completed',
-        dueLabel: '25 Apr 2026',
-      },
-      { title: 'Build core modules', status: 'completed', dueLabel: '30 Apr 2026' },
-    ],
-  },
-  {
-    id: 'sprint-2',
-    cycleNumber: 2,
-    title: 'Sprint Cycle 2',
-    phase: 'Development & Prototyping',
-    status: 'in_progress',
-    progressPercent: 60,
-    dateRangeLabel: '25 Apr – 9 May 2026',
-    teamMembers: 4,
-    tasks: [
-      {
-        title: 'Setup project repository & environment',
-        status: 'completed',
-        dueLabel: '25 Apr 2026',
-      },
-      { title: 'Build core modules', status: 'completed', dueLabel: '30 Apr 2026' },
-      { title: 'Integrate APIs', status: 'in_progress', dueLabel: '5 May 2026' },
-      { title: 'UI/UX implementation', status: 'pending', dueLabel: '7 May 2026' },
-      { title: 'Test & bug fixes', status: 'pending', dueLabel: '9 May 2026' },
-    ],
-  },
-  {
-    id: 'sprint-3',
-    cycleNumber: 3,
-    title: 'Sprint Cycle 3',
-    phase: 'Testing & Integration',
-    status: 'upcoming',
-    progressPercent: 0,
-    dateRangeLabel: '10 May – 24 May 2026',
-    teamMembers: 4,
-    tasks: [],
-  },
-  {
-    id: 'sprint-4',
-    cycleNumber: 4,
-    title: 'Sprint Cycle 4',
-    phase: 'Deployment & Presentation',
-    status: 'upcoming',
-    progressPercent: 0,
-    dateRangeLabel: '25 May – 7 Jun 2026',
-    teamMembers: 4,
-    tasks: [],
-  },
-];
-
-export const MOCK_PROBLEM_STATEMENTS: ProblemStatement[] = [
-  {
-    id: 'ps-1',
-    title: 'Sustainable Campus Solutions',
-    description: 'Develop innovative solutions for waste management and energy efficiency.',
-    overview:
-      'Our campus generates significant waste and consumes excess energy daily. We need sustainable, scalable, and cost-effective solutions to reduce our environmental footprint and promote a greener campus.',
-    tags: ['Environment', 'Impact', 'Innovation'],
-    teamSize: 4,
-    durationLabel: '8 Weeks',
-    difficulty: 'Medium',
-    status: 'Open',
-    featured: true,
-    bookmarked: true,
-    isMine: true,
-    isShortlisted: true,
-    isCompleted: false,
-    updatedLabel: 'Updated 2d ago',
-    deliverables: [
-      { title: 'Research & Analysis', done: true },
-      { title: 'Prototype Development', done: true },
-      { title: 'Solution Implementation', done: false },
-      { title: 'Impact Measurement', done: false },
-    ],
-  },
-  {
-    id: 'ps-2',
-    title: 'Student Mental Health Support',
-    description: 'Create a platform to provide peer support and mental wellness resources.',
-    overview:
-      'Students often struggle to find accessible mental wellness support. This problem statement asks teams to design a platform connecting students with peer support and curated resources.',
-    tags: ['Healthcare'],
-    teamSize: 4,
-    durationLabel: '6 Weeks',
-    difficulty: 'Medium',
-    status: 'Open',
-    featured: false,
-    bookmarked: false,
-    isMine: false,
-    isShortlisted: false,
-    isCompleted: false,
-    updatedLabel: 'Updated 3d ago',
-    deliverables: [
-      { title: 'Research & Analysis', done: false },
-      { title: 'Prototype Development', done: false },
-      { title: 'Solution Implementation', done: false },
-      { title: 'Impact Measurement', done: false },
-    ],
-  },
-  {
-    id: 'ps-3',
-    title: 'Smart Attendance System',
-    description: 'Build a contactless attendance system using facial recognition.',
-    overview:
-      'Manual attendance tracking is slow and error-prone. Design a contactless system that speeds up attendance capture while respecting student privacy.',
-    tags: ['Education'],
-    teamSize: 3,
-    durationLabel: '5 Weeks',
-    difficulty: 'Hard',
-    status: 'Open',
-    featured: false,
-    bookmarked: false,
-    isMine: false,
-    isShortlisted: false,
-    isCompleted: false,
-    updatedLabel: 'Updated 5d ago',
-    deliverables: [
-      { title: 'Research & Analysis', done: false },
-      { title: 'Prototype Development', done: false },
-      { title: 'Solution Implementation', done: false },
-      { title: 'Impact Measurement', done: false },
-    ],
-  },
-  {
-    id: 'ps-4',
-    title: 'Local Business Marketplace',
-    description: 'Empower local businesses by creating a digital marketplace for their products.',
-    overview:
-      'Local shops around campus lack an easy way to reach students online. Build a lightweight marketplace connecting local vendors with the student community.',
-    tags: ['Business'],
-    teamSize: 4,
-    durationLabel: '7 Weeks',
-    difficulty: 'Easy',
-    status: 'Closed',
-    featured: false,
-    bookmarked: false,
-    isMine: false,
-    isShortlisted: false,
-    isCompleted: true,
-    updatedLabel: 'Updated 1w ago',
-    deliverables: [
-      { title: 'Research & Analysis', done: true },
-      { title: 'Prototype Development', done: true },
-      { title: 'Solution Implementation', done: true },
-      { title: 'Impact Measurement', done: true },
-    ],
-  },
-];
 
 export const MOCK_MENTOR_SESSIONS: MentorSession[] = [
   {

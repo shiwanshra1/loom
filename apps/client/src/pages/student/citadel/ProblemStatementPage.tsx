@@ -9,7 +9,11 @@ import {
   BarChart3,
   CircleDot,
 } from 'lucide-react';
-import { useProblemStatements } from '../../../features/student/hooks';
+import {
+  useExpressInterest,
+  useProblemStatements,
+  useToggleBookmark,
+} from '../../../features/student/hooks';
 import type { ProblemStatement, ProblemStatementTab } from '../../../features/student/types';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
@@ -34,10 +38,10 @@ function matchesTab(ps: ProblemStatement, tab: ProblemStatementTab): boolean {
 
 export function ProblemStatementPage() {
   const { data, isLoading } = useProblemStatements();
+  const toggleBookmark = useToggleBookmark();
+  const expressInterest = useExpressInterest();
   const [tab, setTab] = useState<ProblemStatementTab>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [bookmarkOverrides, setBookmarkOverrides] = useState<Record<string, boolean>>({});
-  const [interestSent, setInterestSent] = useState<Record<string, boolean>>({});
 
   const filtered = useMemo(() => (data ?? []).filter((ps) => matchesTab(ps, tab)), [data, tab]);
   const selected =
@@ -47,8 +51,8 @@ export function ProblemStatementPage() {
     return <PageLoading />;
   }
 
-  const isBookmarked = selected ? (bookmarkOverrides[selected.id] ?? selected.bookmarked) : false;
-  const hasSentInterest = selected ? (interestSent[selected.id] ?? false) : false;
+  const isBookmarked = selected?.bookmarked ?? false;
+  const hasSentInterest = selected?.hasExpressedInterest ?? false;
 
   return (
     <div>
@@ -109,9 +113,8 @@ export function ProblemStatementPage() {
               </div>
               <button
                 type="button"
-                onClick={() =>
-                  setBookmarkOverrides((prev) => ({ ...prev, [selected.id]: !isBookmarked }))
-                }
+                onClick={() => toggleBookmark.mutate(selected.id)}
+                disabled={toggleBookmark.isPending}
                 className={`rounded-lg border p-2 ${
                   isBookmarked
                     ? 'border-blue-200 bg-blue-50 text-blue-600'
@@ -184,8 +187,8 @@ export function ProblemStatementPage() {
 
             <Button
               className="w-full"
-              disabled={hasSentInterest}
-              onClick={() => setInterestSent((prev) => ({ ...prev, [selected.id]: true }))}
+              disabled={hasSentInterest || expressInterest.isPending}
+              onClick={() => expressInterest.mutate(selected.id)}
             >
               {hasSentInterest ? 'Interest Sent ✓' : "I'm Interested"}
             </Button>

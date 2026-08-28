@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { CalendarRange, CheckCircle2, Circle, Loader2, Users } from 'lucide-react';
-import { useSprints } from '../../../features/student/hooks';
+import { useSprints, useSubmitMilestone } from '../../../features/student/hooks';
 import type { Sprint, SprintStatus } from '../../../features/student/types';
 import { Card } from '../../../components/ui/Card';
 import { Badge } from '../../../components/ui/Badge';
+import { Button } from '../../../components/ui/Button';
+import { Input } from '../../../components/ui/Input';
 import { ProgressDonut } from '../../../components/ui/ProgressDonut';
 import { Tabs } from '../../../components/ui/Tabs';
 import { PageLoading } from '../../../components/ui/PageLoading';
+import { Modal } from '../../../components/ui/Modal';
 import { CitadelSubNav } from './CitadelSubNav';
 
 type TabValue = 'all' | SprintStatus;
@@ -32,8 +35,13 @@ const TASK_STATUS_ICON = {
 
 export function SprintCyclesPage() {
   const { data: sprints, isLoading } = useSprints();
+  const submitMilestone = useSubmitMilestone();
   const [tab, setTab] = useState<TabValue>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [artifactUrlsText, setArtifactUrlsText] = useState('');
+  const [demoDate, setDemoDate] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!sprints) return [];
@@ -47,6 +55,26 @@ export function SprintCyclesPage() {
 
   if (isLoading || !sprints) {
     return <PageLoading />;
+  }
+
+  async function handleSubmitMilestone() {
+    if (!selected) return;
+    setSubmitError(null);
+    try {
+      await submitMilestone.mutateAsync({
+        sprintId: selected.id,
+        artifactUrls: artifactUrlsText
+          .split(',')
+          .map((url) => url.trim())
+          .filter(Boolean),
+        demoDate: demoDate || undefined,
+      });
+      setSubmitOpen(false);
+      setArtifactUrlsText('');
+      setDemoDate('');
+    } catch {
+      setSubmitError('Could not submit this milestone. Please try again.');
+    }
   }
 
   return (
@@ -148,9 +176,54 @@ export function SprintCyclesPage() {
                 Keep pushing forward! You're on track to complete this sprint.
               </div>
             )}
+
+            {selected.canSubmitMilestone && (
+              <Button className="mt-4 w-full" onClick={() => setSubmitOpen(true)}>
+                Submit Milestone
+              </Button>
+            )}
           </Card>
         )}
       </div>
+
+      <Modal open={submitOpen} onClose={() => setSubmitOpen(false)}>
+        <h2 className="mb-1 text-lg font-semibold text-slate-900">Submit Milestone</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Share your artifact links and, if you have one, a demo date. Your mentor will review it
+          next.
+        </p>
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          Artifact links (comma-separated)
+        </label>
+        <Input
+          className="mb-3"
+          value={artifactUrlsText}
+          onChange={(e) => setArtifactUrlsText(e.target.value)}
+          placeholder="https://github.com/..., https://figma.com/..."
+        />
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          Demo date (optional)
+        </label>
+        <Input
+          type="date"
+          className="mb-4"
+          value={demoDate}
+          onChange={(e) => setDemoDate(e.target.value)}
+        />
+        {submitError && <p className="mb-3 text-sm text-red-600">{submitError}</p>}
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setSubmitOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleSubmitMilestone}
+            disabled={submitMilestone.isPending}
+          >
+            {submitMilestone.isPending ? 'Submitting…' : 'Submit'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

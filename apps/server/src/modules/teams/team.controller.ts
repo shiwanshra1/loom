@@ -43,6 +43,10 @@ export async function list(req: Request, res: Response): Promise<void> {
     filter = { collegeId: user.collegeId };
   } else if (user.role === Role.Trainer) {
     filter = { trainerId: user.userId };
+  } else if (user.role === Role.Mentor) {
+    filter = { mentorId: user.userId };
+  } else if (user.role === Role.Student) {
+    filter = { memberStudentIds: user.userId };
   } else {
     throw new ApiError(403, 'You do not have access to this resource');
   }

@@ -77,6 +77,10 @@ export interface Sprint {
   title: string;
   phase: string;
   status: SprintStatus;
+  // True only when the raw backend status is genuinely "in_progress" — the
+  // display status above collapses in_progress/submitted/reviewed together,
+  // but only in_progress actually accepts a new milestone submission.
+  canSubmitMilestone: boolean;
   progressPercent: number;
   dateRangeLabel: string;
   tasks: SprintTask[];
@@ -105,6 +109,7 @@ export interface ProblemStatement {
   isMine: boolean;
   isShortlisted: boolean;
   isCompleted: boolean;
+  hasExpressedInterest: boolean;
   deliverables: ProblemStatementDeliverable[];
   updatedLabel: string;
 }

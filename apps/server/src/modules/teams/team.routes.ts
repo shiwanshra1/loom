@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { create, list, update } from './team.controller.js';
+import { getTeamSprints } from '../sprints/sprint.controller.js';
 
 export const teamRouter = Router();
 
@@ -16,9 +17,10 @@ teamRouter.post(
 teamRouter.get(
   '/',
   authenticate,
-  authorize(Role.ForgeAdmin, Role.CollegeAdmin, Role.Trainer),
+  authorize(Role.ForgeAdmin, Role.CollegeAdmin, Role.Trainer, Role.Mentor, Role.Student),
   asyncHandler(list)
 );
+teamRouter.get('/:id/sprints', authenticate, asyncHandler(getTeamSprints));
 teamRouter.patch(
   '/:id',
   authenticate,

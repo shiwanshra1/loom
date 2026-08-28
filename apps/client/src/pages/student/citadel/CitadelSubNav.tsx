@@ -4,6 +4,8 @@ const LINKS = [
   { to: '/student/citadel', label: 'Overview', end: true },
   { to: '/student/citadel/sprints', label: 'Sprint Cycles', end: false },
   { to: '/student/citadel/problem-statement', label: 'Problem Statement', end: false },
+  { to: '/student/citadel/progress-report', label: 'Progress Report', end: false },
+  { to: '/student/citadel/feedback', label: 'Feedback', end: false },
 ];
 
 export function CitadelSubNav() {

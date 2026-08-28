@@ -4,9 +4,22 @@ import { TeamModel, type TeamDocument } from '../../models/Team.js';
 import { StudentProfileModel } from '../../models/StudentProfile.js';
 import { TrainerProfileModel } from '../../models/TrainerProfile.js';
 import { UserModel } from '../../models/User.js';
+import { ProblemStatementModel } from '../../models/ProblemStatement.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { ensureSprintsForTeam } from '../sprints/sprint.service.js';
 import type { AuthenticatedUser } from '../../middleware/authenticate.js';
 import type { CreateTeamInput, UpdateTeamInput } from './team.validation.js';
+
+async function resolveProblemStatementId(problemStatementId: string): Promise<Types.ObjectId> {
+  const problemStatement = await ProblemStatementModel.findOne({
+    _id: problemStatementId,
+    status: 'open',
+  });
+  if (!problemStatement) {
+    throw new ApiError(400, 'No open problem statement found for the given id');
+  }
+  return problemStatement._id;
+}
 
 async function resolveMemberIds(
   collegeId: string,
@@ -42,12 +55,17 @@ export async function createTeam(collegeId: string, input: CreateTeamInput): Pro
     ? await resolveRoleEmail(collegeId, input.trainerEmail, Role.Trainer)
     : null;
 
+  const problemStatementId = input.problemStatementId
+    ? await resolveProblemStatementId(input.problemStatementId)
+    : null;
+
   const team = await TeamModel.create({
     name: input.name,
     collegeId,
     memberStudentIds,
     mentorId,
     trainerId,
+    problemStatementId,
   });
 
   if (trainerId) {
@@ -55,6 +73,9 @@ export async function createTeam(collegeId: string, input: CreateTeamInput): Pro
       { userId: trainerId },
       { $addToSet: { assignedTeams: team._id } }
     );
+  }
+  if (problemStatementId) {
+    await ensureSprintsForTeam(team);
   }
 
   return team;
@@ -114,7 +135,17 @@ export async function updateTeam(
       { $addToSet: { assignedTeams: team._id } }
     );
   }
+  if (input.problemStatementId !== undefined) {
+    team.problemStatementId = await resolveProblemStatementId(input.problemStatementId);
+  }
 
   await team.save();
+
+  // Materializing sprints is idempotent (no-op if they already exist) — safe
+  // to call on every update, not just the update that first sets the field.
+  if (team.problemStatementId) {
+    await ensureSprintsForTeam(team);
+  }
+
   return team;
 }

@@ -9,3 +9,5 @@ export * from './courseProgress.js';
 export * from './college.js';
 export * from './cohort.js';
 export * from './team.js';
+export * from './problemStatement.js';
+export * from './sprint.js';

@@ -19,6 +19,8 @@ import { EventsPage } from './pages/student/EventsPage';
 import { CitadelHubPage } from './pages/student/citadel/CitadelHubPage';
 import { SprintCyclesPage } from './pages/student/citadel/SprintCyclesPage';
 import { ProblemStatementPage } from './pages/student/citadel/ProblemStatementPage';
+import { ProgressReportPage } from './pages/student/citadel/ProgressReportPage';
+import { FeedbackPage } from './pages/student/citadel/FeedbackPage';
 import { DashboardPage as MentorDashboardPage } from './pages/mentor/DashboardPage';
 import { StudentsPage as MentorStudentsPage } from './pages/mentor/StudentsPage';
 import { TeamsPage as MentorTeamsPage } from './pages/mentor/TeamsPage';
@@ -93,6 +95,8 @@ export function App() {
                   <Route path="citadel" element={<CitadelHubPage />} />
                   <Route path="citadel/sprints" element={<SprintCyclesPage />} />
                   <Route path="citadel/problem-statement" element={<ProblemStatementPage />} />
+                  <Route path="citadel/progress-report" element={<ProgressReportPage />} />
+                  <Route path="citadel/feedback" element={<FeedbackPage />} />
                   <Route path="mentor" element={<MentorSessionsPage />} />
                   <Route path="events" element={<EventsPage />} />
                 </>

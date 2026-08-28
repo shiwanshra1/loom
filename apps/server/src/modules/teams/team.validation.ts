@@ -5,6 +5,7 @@ export const createTeamSchema = z.object({
   memberStudentIds: z.array(z.string()).optional(),
   mentorEmail: z.string().email().optional(),
   trainerEmail: z.string().email().optional(),
+  problemStatementId: z.string().optional(),
 });
 
 export const updateTeamSchema = createTeamSchema.partial();

@@ -103,6 +103,9 @@ export interface TeamDetail {
   trainerName: string;
   problemStatementTitle: string;
   currentSprint: string;
+  // Null once every cycle is complete, or if sprints haven't materialized yet.
+  currentSprintId: string | null;
+  currentSprintStatus: 'in_progress' | 'submitted' | 'reviewed' | null;
   members: TeamMember[];
 }
 

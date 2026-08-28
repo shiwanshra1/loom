@@ -14,6 +14,8 @@ import { courseProgressRouter } from './modules/progress/courseProgress.routes.j
 import { collegeRouter } from './modules/colleges/college.routes.js';
 import { cohortRouter } from './modules/cohorts/cohort.routes.js';
 import { teamRouter } from './modules/teams/team.routes.js';
+import { problemStatementRouter } from './modules/problemStatements/problemStatement.routes.js';
+import { sprintRouter } from './modules/sprints/sprint.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -43,6 +45,8 @@ export function createApp(): Express {
   app.use('/api/colleges', collegeRouter);
   app.use('/api/cohorts', cohortRouter);
   app.use('/api/teams', teamRouter);
+  app.use('/api/problem-statements', problemStatementRouter);
+  app.use('/api/sprints', sprintRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

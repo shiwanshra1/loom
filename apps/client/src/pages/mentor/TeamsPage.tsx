@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { Layers, Target, UserCheck } from 'lucide-react';
-import { useMentorTeams, useTeamDetails } from '../../features/mentor/hooks';
+import {
+  useAddSprintFeedback,
+  useCompleteSprint,
+  useMentorTeams,
+  useTeamDetails,
+} from '../../features/mentor/hooks';
 import { Card } from '../../components/ui/Card';
+import { Badge } from '../../components/ui/Badge';
+import { Button } from '../../components/ui/Button';
 import { ProgressBar } from '../../components/ui/ProgressBar';
 import { ProgressDonut } from '../../components/ui/ProgressDonut';
 import { PageLoading } from '../../components/ui/PageLoading';
@@ -9,13 +16,41 @@ import { PageLoading } from '../../components/ui/PageLoading';
 export function TeamsPage() {
   const { data: teams, isLoading: teamsLoading } = useMentorTeams();
   const { data: details, isLoading: detailsLoading } = useTeamDetails();
+  const addFeedback = useAddSprintFeedback();
+  const completeSprint = useCompleteSprint();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [feedbackComment, setFeedbackComment] = useState('');
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const selectedTeam = teams?.find((t) => t.id === selectedId) ?? teams?.[0];
   const detail = selectedTeam ? details?.[selectedTeam.id] : undefined;
 
   if (teamsLoading || detailsLoading || !teams) {
     return <PageLoading />;
+  }
+
+  async function handleSubmitFeedback() {
+    if (!detail?.currentSprintId || !feedbackComment.trim()) return;
+    setActionError(null);
+    try {
+      await addFeedback.mutateAsync({
+        sprintId: detail.currentSprintId,
+        comment: feedbackComment.trim(),
+      });
+      setFeedbackComment('');
+    } catch {
+      setActionError('Could not submit feedback. Please try again.');
+    }
+  }
+
+  async function handleMarkComplete() {
+    if (!detail?.currentSprintId) return;
+    setActionError(null);
+    try {
+      await completeSprint.mutateAsync(detail.currentSprintId);
+    } catch {
+      setActionError('Could not mark this sprint complete.');
+    }
   }
 
   return (
@@ -90,6 +125,50 @@ export function TeamsPage() {
                 </div>
               ))}
             </div>
+
+            {detail.currentSprintId && (
+              <div className="mt-4 border-t border-slate-100 pt-4">
+                {actionError && <p className="mb-2 text-xs text-red-600">{actionError}</p>}
+                {detail.currentSprintStatus === 'submitted' && (
+                  <>
+                    <h3 className="mb-2 text-sm font-semibold text-slate-900">
+                      Review this sprint's submission
+                    </h3>
+                    <textarea
+                      value={feedbackComment}
+                      onChange={(e) => setFeedbackComment(e.target.value)}
+                      rows={3}
+                      placeholder="Leave feedback on the submitted milestone…"
+                      className="mb-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <Button
+                      className="w-full"
+                      onClick={handleSubmitFeedback}
+                      disabled={addFeedback.isPending || !feedbackComment.trim()}
+                    >
+                      {addFeedback.isPending ? 'Submitting…' : 'Submit Feedback'}
+                    </Button>
+                  </>
+                )}
+                {detail.currentSprintStatus === 'reviewed' && (
+                  <>
+                    <Badge tone="amber">Reviewed — ready to complete</Badge>
+                    <Button
+                      className="mt-2 w-full"
+                      onClick={handleMarkComplete}
+                      disabled={completeSprint.isPending}
+                    >
+                      {completeSprint.isPending ? 'Completing…' : 'Mark Sprint Complete'}
+                    </Button>
+                  </>
+                )}
+                {detail.currentSprintStatus === 'in_progress' && (
+                  <p className="text-xs text-slate-400">
+                    Waiting on the team to submit this sprint's milestone.
+                  </p>
+                )}
+              </div>
+            )}
           </Card>
         )}
       </div>

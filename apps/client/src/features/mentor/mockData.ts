@@ -7,8 +7,6 @@ import type {
   NotificationItem,
   ProgressSnapshot,
   StudentProfileDetail,
-  TeamDetail,
-  TeamSummary,
   TodaySession,
   UpcomingSessionHighlight,
 } from './types';
@@ -55,12 +53,6 @@ export const MOCK_TODAY_SESSIONS: TodaySession[] = [
     mode: 'Google Meet',
     startingInLabel: 'In 7h 20m',
   },
-];
-
-export const MOCK_TEAMS: TeamSummary[] = [
-  { id: 'team-alpha', name: 'Team Alpha', letter: 'A', memberCount: 6, progressPercent: 75 },
-  { id: 'team-beta', name: 'Team Beta', letter: 'B', memberCount: 5, progressPercent: 60 },
-  { id: 'team-gamma', name: 'Team Gamma', letter: 'G', memberCount: 5, progressPercent: 40 },
 ];
 
 export const MOCK_AT_RISK_STUDENTS: AtRiskStudent[] = [
@@ -240,52 +232,6 @@ export const MOCK_STUDENT_PROFILES: Record<string, StudentProfileDetail> = {
         note: 'Hasn’t started the latest module — needs a check-in.',
         rating: 2,
       },
-    ],
-  },
-};
-
-export const MOCK_TEAM_DETAILS: Record<string, TeamDetail> = {
-  'team-alpha': {
-    id: 'team-alpha',
-    name: 'Team Alpha',
-    letter: 'A',
-    progressPercent: 75,
-    trainerName: 'Ananya Rao',
-    problemStatementTitle: 'Sustainable Campus Solutions',
-    currentSprint: 'Sprint Cycle 2 — Development & Prototyping',
-    members: [
-      { name: 'Rahul Verma', role: 'Team Lead' },
-      { name: 'Neha Gupta', role: 'Designer' },
-      { name: 'Aditya Kumar', role: 'Developer' },
-      { name: 'Ishita Sharma', role: 'Developer' },
-    ],
-  },
-  'team-beta': {
-    id: 'team-beta',
-    name: 'Team Beta',
-    letter: 'B',
-    progressPercent: 60,
-    trainerName: 'Vikram Nair',
-    problemStatementTitle: 'Student Mental Health Support',
-    currentSprint: 'Sprint Cycle 2 — Development & Prototyping',
-    members: [
-      { name: 'Priya Singh', role: 'Team Lead' },
-      { name: 'Rohan Mehta', role: 'Developer' },
-      { name: 'Kabir Malhotra', role: 'Designer' },
-    ],
-  },
-  'team-gamma': {
-    id: 'team-gamma',
-    name: 'Team Gamma',
-    letter: 'G',
-    progressPercent: 40,
-    trainerName: 'Sneha Joshi',
-    problemStatementTitle: 'Smart Attendance System',
-    currentSprint: 'Sprint Cycle 1 — Ideation & Research',
-    members: [
-      { name: 'Ankit Patel', role: 'Team Lead' },
-      { name: 'Simran Kaur', role: 'Developer' },
-      { name: 'Aryan Desai', role: 'Developer' },
     ],
   },
 };

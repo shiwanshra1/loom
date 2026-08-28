@@ -1,7 +1,11 @@
 import { CourseModel, type CourseDocument } from '../../models/Course.js';
 import { EnrollmentModel, type EnrollmentDocument } from '../../models/Enrollment.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { createRazorpayOrder, verifyRazorpaySignature, type RazorpayOrder } from './razorpay.client.js';
+import {
+  createRazorpayOrder,
+  verifyRazorpaySignature,
+  type RazorpayOrder,
+} from './razorpay.client.js';
 import { ensureSessionsForCourse } from '../sessions/session.service.js';
 import type { VerifyPaymentInput } from './enrollment.validation.js';
 

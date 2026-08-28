@@ -16,9 +16,10 @@ export function CitadelHubPage() {
   }
 
   const completedCount = sprints.filter((s) => s.status === 'completed').length;
-  const overallPercent = Math.round(
-    sprints.reduce((sum, s) => sum + s.progressPercent, 0) / sprints.length
-  );
+  const overallPercent =
+    sprints.length > 0
+      ? Math.round(sprints.reduce((sum, s) => sum + s.progressPercent, 0) / sprints.length)
+      : 0;
   const currentSprint = sprints.find((s) => s.status === 'in_progress');
   const nextSprint = sprints.find((s) => s.status === 'upcoming');
   const currentTasksPercent = currentSprint?.tasks.length
@@ -40,6 +41,13 @@ export function CitadelHubPage() {
               Track your progress, complete sprints, and build something extraordinary.
             </p>
           </div>
+
+          {sprints.length === 0 && (
+            <Card className="border-dashed bg-slate-50 text-sm text-slate-500">
+              You&apos;re not on a Citadel team yet — once a College Admin or Trainer places you on
+              one and it picks up a problem statement, your sprint cycles will show up here.
+            </Card>
+          )}
 
           <Card>
             <h2 className="mb-4 font-semibold text-slate-900">Sprint Progress Overview</h2>
