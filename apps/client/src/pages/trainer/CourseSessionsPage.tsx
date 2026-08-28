@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { CheckCircle2, XCircle } from 'lucide-react';
-import type { AttendanceStatus, CourseSessionDto } from '@forge-loom/shared-types';
+import { CalendarPlus, CheckCircle2, XCircle } from 'lucide-react';
+import type { AssessmentType, AttendanceStatus, CourseSessionDto } from '@forge-loom/shared-types';
 import {
+  useCourseAssessments,
   useCourseSessions,
+  useCreateAssessment,
   useMarkAttendance,
   useRoster,
   useUpdateSession,
@@ -11,8 +13,15 @@ import {
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { PageLoading } from '../../components/ui/PageLoading';
 import { Modal } from '../../components/ui/Modal';
+
+const ASSESSMENT_TYPES: { value: AssessmentType; label: string }[] = [
+  { value: 'quiz', label: 'Quiz' },
+  { value: 'exam', label: 'Exam' },
+  { value: 'assignment', label: 'Assignment' },
+];
 
 const STATUS_BADGE: Record<
   CourseSessionDto['status'],
@@ -33,14 +42,20 @@ export function CourseSessionsPage() {
   const { id: courseId } = useParams<{ id: string }>();
   const { data: sessions, isLoading: sessionsLoading } = useCourseSessions(courseId);
   const { data: roster, isLoading: rosterLoading } = useRoster(courseId);
+  const { data: assessments } = useCourseAssessments(courseId);
   const updateSession = useUpdateSession(courseId);
   const markAttendance = useMarkAttendance(courseId);
+  const createAssessment = useCreateAssessment(courseId);
 
   const [attendanceSession, setAttendanceSession] = useState<CourseSessionDto | null>(null);
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
   const [cancelSession, setCancelSession] = useState<CourseSessionDto | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const [assessmentTitle, setAssessmentTitle] = useState('');
+  const [assessmentType, setAssessmentType] = useState<AssessmentType>('quiz');
+  const [assessmentDate, setAssessmentDate] = useState('');
 
   const sortedSessions = useMemo(
     () => [...(sessions ?? [])].sort((a, b) => a.dayNumber - b.dayNumber),
@@ -95,6 +110,21 @@ export function CourseSessionsPage() {
     }
   }
 
+  async function handleAddAssessment() {
+    if (!assessmentTitle.trim() || !assessmentDate) return;
+    try {
+      await createAssessment.mutateAsync({
+        title: assessmentTitle.trim(),
+        type: assessmentType,
+        scheduledDate: new Date(assessmentDate).toISOString(),
+      });
+      setAssessmentTitle('');
+      setAssessmentDate('');
+    } catch {
+      setActionError('Could not add the assessment. Please try again.');
+    }
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -103,6 +133,61 @@ export function CourseSessionsPage() {
           Take attendance day by day, or cancel a session with a reason.
         </p>
       </div>
+
+      <Card className="mb-6">
+        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900">
+          <CalendarPlus size={16} /> Assessments
+        </h2>
+        <div className="mb-4 flex flex-col divide-y divide-slate-100">
+          {assessments?.length === 0 && (
+            <p className="py-2 text-sm text-slate-400">No assessments scheduled yet.</p>
+          )}
+          {assessments?.map((assessment) => (
+            <div
+              key={assessment.id}
+              className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+            >
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-medium text-slate-800">{assessment.title}</p>
+                <Badge tone="amber">{assessment.type}</Badge>
+              </div>
+              <span className="text-xs text-slate-500">
+                {new Date(assessment.scheduledDate).toLocaleDateString()}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            placeholder="Title"
+            className="flex-1"
+            value={assessmentTitle}
+            onChange={(e) => setAssessmentTitle(e.target.value)}
+          />
+          <select
+            value={assessmentType}
+            onChange={(e) => setAssessmentType(e.target.value as AssessmentType)}
+            className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          >
+            {ASSESSMENT_TYPES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <Input
+            type="date"
+            value={assessmentDate}
+            onChange={(e) => setAssessmentDate(e.target.value)}
+          />
+          <Button
+            onClick={handleAddAssessment}
+            disabled={createAssessment.isPending || !assessmentTitle.trim() || !assessmentDate}
+          >
+            Add
+          </Button>
+        </div>
+      </Card>
 
       {sortedSessions.length === 0 && (
         <Card>

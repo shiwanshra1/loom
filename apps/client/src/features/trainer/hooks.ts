@@ -1,6 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CourseDto, CourseSessionDto, RosterEntryDto } from '@forge-loom/shared-types';
+import type {
+  AssessmentDto,
+  AssessmentType,
+  CourseDto,
+  CourseSessionDto,
+  RosterEntryDto,
+  TeamDto,
+} from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
+
+export function useMyTeams() {
+  return useQuery({
+    queryKey: ['trainer', 'teams'],
+    queryFn: () => apiRequest<{ teams: TeamDto[] }>('/api/teams').then((r) => r.teams),
+  });
+}
 
 export function useTeachingCourses() {
   return useQuery({
@@ -50,6 +64,31 @@ export function useUpdateSession(courseId: string | undefined) {
       }).then((r) => r.session),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['trainer', 'sessions', courseId] });
+    },
+  });
+}
+
+export function useCourseAssessments(courseId: string | undefined) {
+  return useQuery({
+    queryKey: ['course', 'assessments', courseId],
+    queryFn: () =>
+      apiRequest<{ assessments: AssessmentDto[] }>(`/api/courses/${courseId}/assessments`).then(
+        (r) => r.assessments
+      ),
+    enabled: Boolean(courseId),
+  });
+}
+
+export function useCreateAssessment(courseId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { title: string; type: AssessmentType; scheduledDate: string }) =>
+      apiRequest<{ assessment: AssessmentDto }>(`/api/courses/${courseId}/assessments`, {
+        method: 'POST',
+        body: input,
+      }).then((r) => r.assessment),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['course', 'assessments', courseId] });
     },
   });
 }

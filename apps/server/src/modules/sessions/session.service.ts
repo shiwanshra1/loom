@@ -1,10 +1,15 @@
-import { CourseAdminProfileModel } from '../../models/CourseAdminProfile.js';
-import { CourseModel, type CourseDocument } from '../../models/Course.js';
+import { type CourseDocument } from '../../models/Course.js';
 import { CourseSessionModel, type CourseSessionDocument } from '../../models/CourseSession.js';
 import { AttendanceRecordModel } from '../../models/AttendanceRecord.js';
 import { EnrollmentModel } from '../../models/Enrollment.js';
 import { UserModel } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
+import {
+  canViewCourse,
+  isCourseAdminOwner,
+  isCourseTrainer,
+  requireCourse,
+} from '../courses/courseAccess.js';
 import type { MarkAttendanceInput, UpdateSessionInput } from './session.validation.js';
 
 // Sessions only materialize for offline courses — online courses are tracked
@@ -42,23 +47,6 @@ export async function ensureSessionsForCourse(course: CourseDocument): Promise<v
   }
 }
 
-async function requireCourse(courseId: string): Promise<CourseDocument> {
-  const course = await CourseModel.findById(courseId);
-  if (!course) {
-    throw new ApiError(404, 'Course not found');
-  }
-  return course;
-}
-
-function isCourseTrainer(course: CourseDocument, trainerUserId: string): boolean {
-  return Boolean(course.trainerId) && course.trainerId?.toString() === trainerUserId;
-}
-
-async function isCourseAdminOwner(course: CourseDocument, userId: string): Promise<boolean> {
-  const profile = await CourseAdminProfileModel.findOne({ userId });
-  return Boolean(profile && course.createdBy.equals(profile._id));
-}
-
 interface Viewer {
   userId: string;
   role: string;
@@ -70,16 +58,7 @@ export async function listCourseSessions(
 ): Promise<CourseSessionDocument[]> {
   const course = await requireCourse(courseId);
 
-  const allowed =
-    isCourseTrainer(course, viewer.userId) ||
-    (await isCourseAdminOwner(course, viewer.userId)) ||
-    (await EnrollmentModel.exists({
-      studentId: viewer.userId,
-      courseId,
-      status: { $in: ['active', 'completed'] },
-    }));
-
-  if (!allowed) {
+  if (!(await canViewCourse(course, viewer))) {
     throw new ApiError(404, 'Course not found');
   }
 

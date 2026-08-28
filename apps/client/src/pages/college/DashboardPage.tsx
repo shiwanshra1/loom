@@ -1,10 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Award, BookOpen, CalendarPlus, GraduationCap, Users } from 'lucide-react';
-import {
-  useCollegeFaculty,
-  useCollegePlacements,
-  useCollegePrograms,
-} from '../../features/college/data';
+import { useCollegePlacements } from '../../features/college/data';
+import { useCollegeFaculty, useCollegePrograms } from '../../features/college/hooks';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { StatCard } from '../../components/ui/StatCard';
@@ -28,6 +25,12 @@ export function DashboardPage() {
   const totalPlacements = placements?.reduce((sum, p) => sum + p.placements, 0) ?? 0;
   const maxPlacements = Math.max(...(placements?.map((p) => p.placements) ?? [1]));
 
+  const PROGRAM_BADGE = {
+    published: { tone: 'green' as const, label: 'Active' },
+    draft: { tone: 'slate' as const, label: 'Draft' },
+    archived: { tone: 'amber' as const, label: 'Archived' },
+  };
+
   function handleHostEvent(event: FormEvent) {
     event.preventDefault();
     if (!eventTitle || !eventDate) return;
@@ -45,7 +48,7 @@ export function DashboardPage() {
         <StatCard
           icon={BookOpen}
           label="Active Programs"
-          value={String(programs?.filter((p) => p.status === 'Active').length ?? 0)}
+          value={String(programs?.filter((p) => p.status === 'published').length ?? 0)}
         />
         <StatCard
           icon={Users}
@@ -71,38 +74,51 @@ export function DashboardPage() {
         <Card>
           <h2 className="mb-4 font-semibold text-slate-900">Programs / Active Courses</h2>
           <div className="flex flex-col divide-y divide-slate-100">
-            {programs?.map((program) => (
-              <div
-                key={program.id}
-                className="flex items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-800">{program.name}</p>
-                  <p className="text-xs text-slate-500">
-                    {program.studentsEnrolled} students enrolled
-                  </p>
+            {programs?.length === 0 && (
+              <p className="py-4 text-sm text-slate-400">
+                No students at this college have enrolled in a course yet.
+              </p>
+            )}
+            {programs?.map((program) => {
+              const badge = PROGRAM_BADGE[program.status];
+              return (
+                <div
+                  key={program.courseId}
+                  className="flex items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{program.title}</p>
+                    <p className="text-xs text-slate-500">
+                      {program.studentsEnrolled} students enrolled
+                    </p>
+                  </div>
+                  <Badge tone={badge.tone}>{badge.label}</Badge>
                 </div>
-                <Badge tone={program.status === 'Active' ? 'green' : 'amber'}>
-                  {program.status}
-                </Badge>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </Card>
 
         <Card>
           <h2 className="mb-4 font-semibold text-slate-900">Faculty Overview</h2>
           <div className="flex flex-col divide-y divide-slate-100">
+            {faculty?.length === 0 && (
+              <p className="py-4 text-sm text-slate-400">
+                No trainers or mentors are linked to this college yet.
+              </p>
+            )}
             {faculty?.map((member) => (
               <div
-                key={member.id}
+                key={member.userId}
                 className="flex items-center justify-between gap-2 py-3 first:pt-0 last:pb-0"
               >
                 <div>
-                  <p className="text-sm font-medium text-slate-800">{member.name}</p>
-                  <p className="text-xs text-slate-500">{member.role}</p>
+                  <p className="text-sm font-medium text-slate-800">{member.email}</p>
+                  <p className="text-xs capitalize text-slate-500">{member.role}</p>
                 </div>
-                <span className="text-xs text-slate-500">{member.workload} teams</span>
+                <span className="text-xs text-slate-500">
+                  {member.workload} {member.role === 'trainer' ? 'teams' : 'students'}
+                </span>
               </div>
             ))}
           </div>

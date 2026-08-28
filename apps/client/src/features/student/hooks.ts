@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AssessmentDto,
   AttendanceHistoryEntryDto,
   CourseDeliveryMode,
   CourseDto,
   CourseListPageDto,
+  CourseProgressDto,
   EnrollmentDto,
   VideoProgressDto,
 } from '@forge-loom/shared-types';
@@ -246,5 +248,27 @@ export function useUpdateVideoProgress() {
         queryKey: ['student', 'video-progress', progress.courseId],
       });
     },
+  });
+}
+
+export function useCourseProgress(studentId: string | undefined, courseId: string | undefined) {
+  return useQuery({
+    queryKey: ['student', 'course-progress', courseId],
+    queryFn: () =>
+      apiRequest<{ progress: CourseProgressDto }>(
+        `/api/students/${studentId}/course-progress?courseId=${courseId}`
+      ).then((r) => r.progress),
+    enabled: Boolean(studentId) && Boolean(courseId),
+  });
+}
+
+export function useCourseAssessments(courseId: string | undefined) {
+  return useQuery({
+    queryKey: ['course', 'assessments', courseId],
+    queryFn: () =>
+      apiRequest<{ assessments: AssessmentDto[] }>(`/api/courses/${courseId}/assessments`).then(
+        (r) => r.assessments
+      ),
+    enabled: Boolean(courseId),
   });
 }

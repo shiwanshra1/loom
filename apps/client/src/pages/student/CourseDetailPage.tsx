@@ -1,17 +1,27 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { CalendarX2, CheckCircle2, CircleDashed, PlayCircle, XCircle } from 'lucide-react';
+import {
+  CalendarX2,
+  CheckCircle2,
+  CircleDashed,
+  ClipboardList,
+  PlayCircle,
+  XCircle,
+} from 'lucide-react';
 import type { AttendanceHistoryEntryDto, VideoProgressDto } from '@forge-loom/shared-types';
 import { useAuth } from '../../auth/AuthContext';
 import {
+  useCourseAssessments,
   useCourseAttendance,
   useCourseDetail,
+  useCourseProgress,
   useUpdateVideoProgress,
   useVideoProgress,
 } from '../../features/student/hooks';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { ProgressBar } from '../../components/ui/ProgressBar';
+import { ProgressDonut } from '../../components/ui/ProgressDonut';
 import { PageLoading } from '../../components/ui/PageLoading';
 import { YouTubePlayer } from '../../components/video/YouTubePlayer';
 
@@ -37,6 +47,8 @@ export function CourseDetailPage() {
   const { data: videoProgress, isLoading: videoProgressLoading } = useVideoProgress(
     isOnline ? courseId : undefined
   );
+  const { data: progress, isLoading: progressLoading } = useCourseProgress(user?.id, courseId);
+  const { data: assessments } = useCourseAssessments(courseId);
   const updateProgress = useUpdateVideoProgress();
 
   const [activeDay, setActiveDay] = useState<number | null>(null);
@@ -53,10 +65,29 @@ export function CourseDetailPage() {
     return map;
   }, [videoProgress]);
 
+  const calendarEntries = useMemo(() => {
+    const sessionEntries = (!isOnline ? (attendance ?? []) : []).map((entry) => ({
+      date: entry.session.scheduledDate,
+      label: `Day ${entry.session.dayNumber}`,
+      sub: entry.session.status === 'cancelled' ? 'Cancelled' : entry.session.status,
+      tone: entry.session.status === 'cancelled' ? ('slate' as const) : ('blue' as const),
+    }));
+    const assessmentEntries = (assessments ?? []).map((assessment) => ({
+      date: assessment.scheduledDate,
+      label: assessment.title,
+      sub: assessment.type,
+      tone: 'amber' as const,
+    }));
+    return [...sessionEntries, ...assessmentEntries].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+  }, [attendance, assessments, isOnline]);
+
   if (
     courseLoading ||
     (!isOnline && attendanceLoading) ||
     (isOnline && videoProgressLoading) ||
+    progressLoading ||
     !course
   ) {
     return <PageLoading />;
@@ -73,6 +104,62 @@ export function CourseDetailPage() {
         </div>
         <p className="text-sm text-slate-500">{course.description || 'No description.'}</p>
       </div>
+
+      {progress && (
+        <Card className="mb-6">
+          <div className="flex flex-wrap items-center gap-6">
+            <ProgressDonut percent={progress.overallPercent} />
+            <div className="grid flex-1 grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-xs text-slate-500">Modules Complete</p>
+                <p className="font-medium text-slate-900">
+                  {progress.modulesCompleted} / {progress.modulesTotal}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Next Session</p>
+                <p className="font-medium text-slate-900">
+                  {progress.nextSession
+                    ? `Day ${progress.nextSession.dayNumber} · ${new Date(progress.nextSession.scheduledDate).toLocaleDateString()}`
+                    : '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">Next Assessment</p>
+                <p className="font-medium text-slate-900">
+                  {progress.nextAssessment
+                    ? `${progress.nextAssessment.title} · ${new Date(progress.nextAssessment.scheduledDate).toLocaleDateString()}`
+                    : '—'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {calendarEntries.length > 0 && (
+        <Card className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900">
+            <ClipboardList size={16} /> Course Calendar
+          </h2>
+          <div className="flex flex-col divide-y divide-slate-100">
+            {calendarEntries.map((entry, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+              >
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-slate-800">{entry.label}</p>
+                  <Badge tone={entry.tone}>{entry.sub}</Badge>
+                </div>
+                <span className="text-xs text-slate-500">
+                  {new Date(entry.date).toLocaleDateString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="flex flex-col gap-3">
         {course.syllabus.map((day) => {

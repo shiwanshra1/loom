@@ -13,6 +13,10 @@ import {
   updateStatus,
 } from './course.controller.js';
 import { getRoster, listSessions } from '../sessions/session.controller.js';
+import {
+  create as createAssessment,
+  list as listAssessments,
+} from '../assessments/assessment.controller.js';
 
 export const courseRouter = Router();
 
@@ -23,6 +27,8 @@ courseRouter.get('/mine', authenticate, authorize(Role.CourseAdmin), asyncHandle
 courseRouter.get('/teaching', authenticate, authorize(Role.Trainer), asyncHandler(listTeaching));
 courseRouter.get('/:id/sessions', authenticate, asyncHandler(listSessions));
 courseRouter.get('/:id/roster', authenticate, authorize(Role.Trainer), asyncHandler(getRoster));
+courseRouter.get('/:id/assessments', authenticate, asyncHandler(listAssessments));
+courseRouter.post('/:id/assessments', authenticate, asyncHandler(createAssessment));
 courseRouter.get('/:id', authenticate, asyncHandler(getOne));
 
 courseRouter.post('/', authenticate, authorize(Role.CourseAdmin), asyncHandler(create));

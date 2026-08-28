@@ -4,3 +4,8 @@ export * from './course.js';
 export * from './enrollment.js';
 export * from './session.js';
 export * from './videoProgress.js';
+export * from './assessment.js';
+export * from './courseProgress.js';
+export * from './college.js';
+export * from './cohort.js';
+export * from './team.js';

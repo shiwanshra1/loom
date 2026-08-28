@@ -1,12 +1,20 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Role, SELF_REGISTERABLE_ROLES } from '@forge-loom/shared-types';
+import { COLLEGE_SCOPED_ROLES, Role, SELF_REGISTERABLE_ROLES } from '@forge-loom/shared-types';
+import type { CollegeDto } from '@forge-loom/shared-types';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLE_HOME_PATH, ROLE_LABELS } from '../../auth/roleHome';
-import { ApiClientError } from '../../lib/apiClient';
+import { apiRequest, ApiClientError } from '../../lib/apiClient';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+
+// Every college-scoped role picks an existing college except CollegeAdmin,
+// who founds a new one (their display name becomes its name) — see
+// collegeProvisioning.ts on the server for the authoritative rule.
+function needsCollegePicker(role: Role): boolean {
+  return COLLEGE_SCOPED_ROLES.includes(role) && role !== Role.CollegeAdmin;
+}
 
 export function RegisterPage() {
   const { register } = useAuth();
@@ -16,8 +24,17 @@ export function RegisterPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [role, setRole] = useState<Role>(Role.Student);
+  const [collegeId, setCollegeId] = useState('');
+  const [colleges, setColleges] = useState<CollegeDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!needsCollegePicker(role) || colleges.length > 0) return;
+    apiRequest<{ colleges: CollegeDto[] }>('/api/colleges')
+      .then((data) => setColleges(data.colleges))
+      .catch(() => undefined);
+  }, [role, colleges.length]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -25,7 +42,13 @@ export function RegisterPage() {
     setSubmitting(true);
 
     try {
-      const registeredUser = await register({ email, password, displayName, role });
+      const registeredUser = await register({
+        email,
+        password,
+        displayName,
+        role,
+        collegeId: needsCollegePicker(role) ? collegeId : undefined,
+      });
       navigate(ROLE_HOME_PATH[registeredUser.role], { replace: true });
     } catch (err) {
       setError(
@@ -77,6 +100,36 @@ export function RegisterPage() {
             />
           </div>
 
+          {role === Role.CollegeAdmin && (
+            <p className="-mt-2 text-xs text-slate-400">
+              This creates a new college in Forge Loom, named after the display name above.
+            </p>
+          )}
+
+          {needsCollegePicker(role) && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="college">
+                College
+              </label>
+              <select
+                id="college"
+                required
+                value={collegeId}
+                onChange={(event) => setCollegeId(event.target.value)}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              >
+                <option value="" disabled>
+                  Select your college…
+                </option>
+                {colleges.map((college) => (
+                  <option key={college.id} value={college.id}>
+                    {college.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
               Email
@@ -110,7 +163,11 @@ export function RegisterPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <Button type="submit" disabled={submitting} className="w-full">
+          <Button
+            type="submit"
+            disabled={submitting || (needsCollegePicker(role) && !collegeId)}
+            className="w-full"
+          >
             {submitting ? 'Creating account…' : 'Create account'}
           </Button>
         </form>

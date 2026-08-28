@@ -1,4 +1,3 @@
-import { Types } from 'mongoose';
 import type { Role } from '@forge-loom/shared-types';
 import { UserModel, type UserDocument } from '../../models/User.js';
 import { hashPassword, comparePassword } from '../../utils/password.js';
@@ -9,6 +8,7 @@ import {
   revokeRefreshToken,
 } from './refreshToken.store.js';
 import { createProfileForRole } from './profileFactory.js';
+import { resolveCollegeIdForRegistration } from './collegeProvisioning.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { RegisterInput, LoginInput } from './auth.validation.js';
 
@@ -42,15 +42,21 @@ export async function registerUser(
     throw new ApiError(409, 'An account with this email already exists');
   }
 
+  const collegeId = await resolveCollegeIdForRegistration(
+    input.role as Role,
+    input.displayName,
+    input.collegeId
+  );
+
   const passwordHash = await hashPassword(input.password);
   const user = await UserModel.create({
     email: input.email,
     passwordHash,
     role: input.role,
-    collegeId: input.collegeId ? new Types.ObjectId(input.collegeId) : undefined,
+    collegeId,
   });
 
-  await createProfileForRole(input.role as Role, user._id, input.displayName);
+  await createProfileForRole(input.role as Role, user._id, input.displayName, collegeId);
 
   const tokens = await issueTokens(user);
   return { user, tokens };

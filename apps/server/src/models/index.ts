@@ -15,3 +15,7 @@ export * from './Enrollment.js';
 export * from './CourseSession.js';
 export * from './AttendanceRecord.js';
 export * from './VideoProgress.js';
+export * from './Assessment.js';
+export * from './College.js';
+export * from './Cohort.js';
+export * from './Team.js';

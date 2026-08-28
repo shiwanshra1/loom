@@ -13,9 +13,8 @@ import {
   useTrainerStats,
   useTrainerStudents,
   useTrainerSubmissions,
-  useTrainerTeams,
 } from '../../features/trainer/data';
-import { useTeachingCourses } from '../../features/trainer/hooks';
+import { useMyTeams, useTeachingCourses } from '../../features/trainer/hooks';
 import { Card } from '../../components/ui/Card';
 import { StatCard } from '../../components/ui/StatCard';
 import { Badge } from '../../components/ui/Badge';
@@ -28,7 +27,7 @@ export function DashboardPage() {
   const { data: students, isLoading: studentsLoading } = useTrainerStudents();
   const { data: courses, isLoading: coursesLoading } = useTeachingCourses();
   const { data: submissions, isLoading: submissionsLoading } = useTrainerSubmissions();
-  const { data: teams, isLoading: teamsLoading } = useTrainerTeams();
+  const { data: teams, isLoading: teamsLoading } = useMyTeams();
 
   const [grades, setGrades] = useState<Record<string, string>>({});
   const [graded, setGraded] = useState<Record<string, boolean>>({});
@@ -174,11 +173,20 @@ export function DashboardPage() {
             <Layers size={16} /> Teams Connection
           </h2>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {teams?.length === 0 && (
+              <p className="text-sm text-slate-400 sm:col-span-2">
+                No teams assigned to you yet — a College Admin manages team assignments.
+              </p>
+            )}
             {teams?.map((team) => (
               <div key={team.id} className="rounded-xl border border-slate-200 p-3">
                 <p className="text-sm font-medium text-slate-900">{team.name}</p>
-                <p className="text-xs text-slate-500">{team.problemStatementTitle}</p>
-                <Badge tone="blue">{team.sprintStatus}</Badge>
+                <p className="text-xs text-slate-500">
+                  {team.members.length} member{team.members.length === 1 ? '' : 's'}
+                </p>
+                <Badge tone={team.mentorId ? 'blue' : 'slate'}>
+                  {team.mentorId ? 'Mentor assigned' : 'No mentor yet'}
+                </Badge>
               </div>
             ))}
           </div>

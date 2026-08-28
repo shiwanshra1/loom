@@ -10,6 +10,10 @@ import { enrollmentRouter } from './modules/enrollments/enrollment.routes.js';
 import { catalogRouter } from './modules/catalog/catalog.routes.js';
 import { sessionRouter, studentAttendanceRouter } from './modules/sessions/session.routes.js';
 import { videoProgressRouter } from './modules/videoProgress/videoProgress.routes.js';
+import { courseProgressRouter } from './modules/progress/courseProgress.routes.js';
+import { collegeRouter } from './modules/colleges/college.routes.js';
+import { cohortRouter } from './modules/cohorts/cohort.routes.js';
+import { teamRouter } from './modules/teams/team.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -34,7 +38,11 @@ export function createApp(): Express {
   app.use('/api/catalog', catalogRouter);
   app.use('/api/sessions', sessionRouter);
   app.use('/api/students', studentAttendanceRouter);
+  app.use('/api/students', courseProgressRouter);
   app.use('/api/video-progress', videoProgressRouter);
+  app.use('/api/colleges', collegeRouter);
+  app.use('/api/cohorts', cohortRouter);
+  app.use('/api/teams', teamRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
