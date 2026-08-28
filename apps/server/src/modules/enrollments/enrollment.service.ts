@@ -1,52 +1,99 @@
 import { CourseModel, type CourseDocument } from '../../models/Course.js';
 import { EnrollmentModel, type EnrollmentDocument } from '../../models/Enrollment.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { processPayment } from './payment.stub.js';
+import { createRazorpayOrder, verifyRazorpaySignature, type RazorpayOrder } from './razorpay.client.js';
 import { ensureSessionsForCourse } from '../sessions/session.service.js';
+import type { VerifyPaymentInput } from './enrollment.validation.js';
 
 export interface EnrollmentWithCourse {
   enrollment: EnrollmentDocument;
   course: CourseDocument;
 }
 
-// A student can re-enroll only once a prior enrollment in the same course was
-// refunded — an existing pending/active/completed enrollment blocks a second
-// purchase outright (disclosed decision, roadmap left this to us).
-const BLOCKED_REENROLL_STATUSES = ['pending_payment', 'active', 'completed'];
+export interface EnrollmentWithOrder extends EnrollmentWithCourse {
+  order: RazorpayOrder;
+}
+
+// A student can start a fresh purchase only once a prior enrollment in the
+// same course was refunded — an active/completed enrollment blocks a second
+// purchase outright (disclosed decision, roadmap left this to us). A
+// `pending_payment` enrollment isn't blocking — it's reused (a fresh
+// Razorpay order is issued against it) so an abandoned checkout can be retried.
+const BLOCKED_REENROLL_STATUSES = ['active', 'completed'];
 
 export async function createEnrollment(
   studentId: string,
   courseId: string
-): Promise<EnrollmentWithCourse> {
+): Promise<EnrollmentWithOrder> {
   const course = await CourseModel.findOne({ _id: courseId, status: 'published' });
   if (!course) {
     throw new ApiError(404, 'Course not found');
   }
 
-  const existing = await EnrollmentModel.findOne({
+  const blocked = await EnrollmentModel.findOne({
     studentId,
     courseId,
     status: { $in: BLOCKED_REENROLL_STATUSES },
   });
-  if (existing) {
+  if (blocked) {
     throw new ApiError(409, 'You are already enrolled in this course');
   }
 
-  const enrollment = await EnrollmentModel.create({
-    studentId,
-    courseId,
-    status: 'pending_payment',
-    paymentAmount: course.price,
-  });
+  const enrollment =
+    (await EnrollmentModel.findOne({ studentId, courseId, status: 'pending_payment' })) ??
+    (await EnrollmentModel.create({
+      studentId,
+      courseId,
+      status: 'pending_payment',
+      paymentAmount: course.price,
+    }));
 
-  // Stubbed payment always succeeds today — this is the seam where a real
-  // Razorpay order/verify step slots in without restructuring the flow above.
-  const payment = await processPayment(enrollment);
-  enrollment.status = 'active';
-  enrollment.paymentRef = payment.paymentRef;
+  const order = await createRazorpayOrder(
+    Math.round(course.price * 100),
+    course.currency,
+    enrollment._id.toString()
+  );
+  enrollment.razorpayOrderId = order.id;
   await enrollment.save();
 
-  // Offline courses get their session calendar materialized on first
+  return { enrollment, course, order };
+}
+
+export async function verifyEnrollmentPayment(
+  enrollmentId: string,
+  studentId: string,
+  input: VerifyPaymentInput
+): Promise<EnrollmentWithCourse> {
+  const enrollment = await EnrollmentModel.findById(enrollmentId);
+  if (!enrollment || enrollment.studentId.toString() !== studentId) {
+    throw new ApiError(404, 'Enrollment not found');
+  }
+  if (enrollment.status !== 'pending_payment') {
+    throw new ApiError(400, 'This enrollment is not awaiting payment');
+  }
+  if (enrollment.razorpayOrderId !== input.razorpayOrderId) {
+    throw new ApiError(400, 'Order does not match this enrollment');
+  }
+
+  const valid = verifyRazorpaySignature(
+    input.razorpayOrderId,
+    input.razorpayPaymentId,
+    input.razorpaySignature
+  );
+  if (!valid) {
+    throw new ApiError(400, 'Payment verification failed');
+  }
+
+  enrollment.status = 'active';
+  enrollment.paymentRef = input.razorpayPaymentId;
+  await enrollment.save();
+
+  const course = await CourseModel.findById(enrollment.courseId);
+  if (!course) {
+    throw new ApiError(404, 'Course not found');
+  }
+
+  // Offline courses get their session calendar materialized on first active
   // enrollment (Phase 3) — a no-op for online courses and for any course
   // that already has its sessions generated.
   await ensureSessionsForCourse(course);

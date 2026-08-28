@@ -8,6 +8,10 @@ export interface EnrollmentDocument {
   studentId: Types.ObjectId;
   courseId: Types.ObjectId;
   status: EnrollmentStatus;
+  // Set as soon as a Razorpay order is created for this enrollment (even
+  // while still pending_payment) — needed to verify the signature the
+  // client hands back, and to detect a stale/mismatched order on retry.
+  razorpayOrderId: string | null;
   paymentRef: string | null;
   paymentAmount: number;
   enrolledAt: Date;
@@ -25,6 +29,7 @@ const enrollmentSchema = new Schema<EnrollmentDocument>(
       enum: ['pending_payment', 'active', 'completed', 'refunded'],
       default: 'pending_payment',
     },
+    razorpayOrderId: { type: String, default: null },
     paymentRef: { type: String, default: null },
     paymentAmount: { type: Number, required: true, min: 0 },
     enrolledAt: { type: Date, default: () => new Date() },

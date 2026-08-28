@@ -25,3 +25,12 @@ export interface EnrollmentDto {
   enrolledAt: string;
   completedAt: string | null;
 }
+
+// key_id is intentionally public — Razorpay's own Checkout.js is designed to
+// receive it client-side. key_secret never leaves the server.
+export interface RazorpayCheckoutDto {
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+}

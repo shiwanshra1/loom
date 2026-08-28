@@ -7,9 +7,11 @@ import type {
   CourseListPageDto,
   CourseProgressDto,
   EnrollmentDto,
+  RazorpayCheckoutDto,
   VideoProgressDto,
 } from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
+import { openRazorpayCheckout } from '../../lib/razorpay';
 import {
   MOCK_CALENDAR_ENTRIES,
   MOCK_CITADEL_DAYS_REMAINING,
@@ -109,14 +111,49 @@ export function useMyEnrollments() {
   });
 }
 
+interface EnrollInput {
+  courseId: string;
+  courseTitle: string;
+  userEmail?: string;
+}
+
+// Three real network round-trips, not one: create the enrollment + a
+// Razorpay order, let the user actually pay via Checkout.js (test-mode cards
+// only, per the account's current key), then verify the signature server-side
+// before the enrollment is considered active. A dismissed/cancelled checkout
+// rejects with RazorpayDismissedError rather than silently failing.
 export function useEnroll() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (courseId: string) =>
-      apiRequest<{ enrollment: EnrollmentDto }>('/api/enrollments', {
-        method: 'POST',
-        body: { courseId },
-      }).then((r) => r.enrollment),
+    mutationFn: async ({ courseId, courseTitle, userEmail }: EnrollInput) => {
+      const created = await apiRequest<{ enrollment: EnrollmentDto; razorpay: RazorpayCheckoutDto }>(
+        '/api/enrollments',
+        { method: 'POST', body: { courseId } }
+      );
+
+      const payment = await openRazorpayCheckout({
+        key: created.razorpay.keyId,
+        amount: created.razorpay.amount,
+        currency: created.razorpay.currency,
+        order_id: created.razorpay.orderId,
+        name: 'Forge Loom',
+        description: courseTitle,
+        prefill: userEmail ? { email: userEmail } : undefined,
+      });
+
+      const verified = await apiRequest<{ enrollment: EnrollmentDto }>(
+        `/api/enrollments/${created.enrollment.id}/verify-payment`,
+        {
+          method: 'POST',
+          body: {
+            razorpayPaymentId: payment.razorpay_payment_id,
+            razorpayOrderId: payment.razorpay_order_id,
+            razorpaySignature: payment.razorpay_signature,
+          },
+        }
+      );
+      return verified.enrollment;
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY });
       void queryClient.invalidateQueries({ queryKey: ['student', 'courses'] });

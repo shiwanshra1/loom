@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { BookOpen, CheckCircle2, Clock, Laptop, MapPin, ShoppingCart } from 'lucide-react';
 import type { CourseDeliveryMode, CourseDto } from '@forge-loom/shared-types';
 import { useCatalog, useEnroll, useMyEnrollments } from '../../features/student/hooks';
+import { useAuth } from '../../auth/AuthContext';
 import { ApiClientError } from '../../lib/apiClient';
+import { RazorpayDismissedError } from '../../lib/razorpay';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Tabs } from '../../components/ui/Tabs';
@@ -28,6 +30,7 @@ const CARD_ACCENTS = [
 ];
 
 export function CatalogPage() {
+  const { user } = useAuth();
   const [filter, setFilter] = useState<FilterValue>('all');
   const { data: page, isLoading: catalogLoading } = useCatalog(
     filter === 'all' ? undefined : filter
@@ -67,12 +70,20 @@ export function CatalogPage() {
     if (!checkoutCourse) return;
     setCheckoutError(null);
     try {
-      await enroll.mutateAsync(checkoutCourse.id);
+      await enroll.mutateAsync({
+        courseId: checkoutCourse.id,
+        courseTitle: checkoutCourse.title,
+        userEmail: user?.email,
+      });
       setCheckoutSuccess(true);
     } catch (err) {
-      setCheckoutError(
-        err instanceof ApiClientError ? err.message : 'Purchase failed. Please try again.'
-      );
+      if (err instanceof RazorpayDismissedError) {
+        setCheckoutError('Payment window closed — you can try again whenever you’re ready.');
+      } else {
+        setCheckoutError(
+          err instanceof ApiClientError ? err.message : 'Purchase failed. Please try again.'
+        );
+      }
     }
   }
 
@@ -172,7 +183,8 @@ export function CatalogPage() {
               </Button>
             </div>
             <p className="mt-3 text-center text-xs text-slate-400">
-              Payment is simulated for now — no real charge.
+              Test payment via Razorpay — card 4111 1111 1111 1111, any future expiry, any CVV. No
+              real money moves.
             </p>
           </>
         )}

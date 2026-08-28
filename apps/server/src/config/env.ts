@@ -24,4 +24,8 @@ export const env = {
     refreshExpiry: process.env.JWT_REFRESH_EXPIRY ?? '30d',
   },
   clientOrigin: process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
+  razorpay: {
+    keyId: required('RAZORPAY_KEY_ID'),
+    keySecret: required('RAZORPAY_KEY_SECRET'),
+  },
 };
