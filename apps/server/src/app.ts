@@ -6,6 +6,8 @@ import cookieParser from 'cookie-parser';
 import { env } from './config/env.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { courseRouter } from './modules/courses/course.routes.js';
+import { enrollmentRouter } from './modules/enrollments/enrollment.routes.js';
+import { catalogRouter } from './modules/catalog/catalog.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -26,6 +28,8 @@ export function createApp(): Express {
 
   app.use('/api/auth', authRouter);
   app.use('/api/courses', courseRouter);
+  app.use('/api/enrollments', enrollmentRouter);
+  app.use('/api/catalog', catalogRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

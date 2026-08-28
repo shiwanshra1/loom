@@ -37,6 +37,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   [Role.Student]: [
     { label: 'Home', path: '/student', icon: Home },
     { label: 'Courses', path: '/student/courses', icon: BookOpen },
+    { label: 'Browse Catalog', path: '/student/catalog', icon: Search },
     { label: 'Calendar', path: '/student/calendar', icon: Calendar },
     { label: 'Tracker', path: '/student/tracker', icon: TrendingUp },
     { label: 'Citadel', path: '/student/citadel', icon: Castle },

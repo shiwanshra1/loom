@@ -1,8 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  CourseDeliveryMode,
+  CourseListPageDto,
+  EnrollmentDto,
+} from '@forge-loom/shared-types';
+import { apiRequest } from '../../lib/apiClient';
 import {
   MOCK_CALENDAR_ENTRIES,
   MOCK_CITADEL_DAYS_REMAINING,
-  MOCK_COURSES,
   MOCK_EVENTS,
   MOCK_FEATURED_EVENT,
   MOCK_MENTOR,
@@ -15,20 +20,102 @@ import {
   MOCK_UPCOMING_EVENTS,
   MOCK_WEEKLY_PROGRESS,
 } from './mockData';
+import type { CourseStatus, CourseSummary } from './types';
 
 // Each hook below is a thin useQuery wrapper around static mock data — Phase
-// 2/3 backend (courses, Citadel, sessions) doesn't exist yet. Swapping to the
+// 3+ backend (Citadel, sessions, events) doesn't exist yet. Swapping to the
 // real API later means replacing each queryFn with an apiRequest() call; the
-// pages consuming these hooks don't need to change.
+// pages consuming these hooks don't need to change. `useStudentCourses` below
+// is the one hook already swapped over, by Phase 2.
 
 export function useStudentStats() {
   return useQuery({ queryKey: ['student', 'stats'], queryFn: () => Promise.resolve(MOCK_STATS) });
 }
 
+const ENROLLMENTS_KEY = ['student', 'enrollments'];
+
+// No leveling/difficulty field exists on the real course model, and real
+// watch/attendance progress isn't computed until Phase 3/4 — until then this
+// maps an enrollment into the existing CourseSummary shape with the
+// best-available stand-ins, disclosed in the Phase 2 report.
+const CARD_ACCENTS = [
+  'bg-blue-600',
+  'bg-emerald-600',
+  'bg-violet-600',
+  'bg-orange-500',
+  'bg-teal-600',
+  'bg-pink-600',
+];
+
+function enrollmentStatusToCourseStatus(status: EnrollmentDto['status']): CourseStatus {
+  switch (status) {
+    case 'active':
+      return 'in_progress';
+    case 'completed':
+      return 'completed';
+    case 'refunded':
+      return 'dropped';
+    case 'pending_payment':
+    default:
+      return 'upcoming';
+  }
+}
+
+function toCourseSummary(enrollment: EnrollmentDto, index: number): CourseSummary {
+  return {
+    id: enrollment.courseId,
+    name: enrollment.course.title,
+    level: 'Beginner',
+    status: enrollmentStatusToCourseStatus(enrollment.status),
+    progressPercent: enrollment.status === 'completed' ? 100 : 0,
+    updatedLabel: `Enrolled ${new Date(enrollment.enrolledAt).toLocaleDateString()}`,
+    accentClassName: CARD_ACCENTS[index % CARD_ACCENTS.length] ?? 'bg-blue-600',
+  };
+}
+
 export function useStudentCourses() {
   return useQuery({
     queryKey: ['student', 'courses'],
-    queryFn: () => Promise.resolve(MOCK_COURSES),
+    queryFn: () =>
+      apiRequest<{ enrollments: EnrollmentDto[] }>('/api/enrollments/mine').then((r) =>
+        r.enrollments.map(toCourseSummary)
+      ),
+  });
+}
+
+export function useCatalog(deliveryMode?: CourseDeliveryMode) {
+  return useQuery({
+    queryKey: ['student', 'catalog', deliveryMode ?? 'all'],
+    queryFn: () => {
+      const params = new URLSearchParams({ limit: '50' });
+      if (deliveryMode) params.set('deliveryMode', deliveryMode);
+      return apiRequest<CourseListPageDto>(`/api/catalog?${params.toString()}`);
+    },
+  });
+}
+
+export function useMyEnrollments() {
+  return useQuery({
+    queryKey: ENROLLMENTS_KEY,
+    queryFn: () =>
+      apiRequest<{ enrollments: EnrollmentDto[] }>('/api/enrollments/mine').then(
+        (r) => r.enrollments
+      ),
+  });
+}
+
+export function useEnroll() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (courseId: string) =>
+      apiRequest<{ enrollment: EnrollmentDto }>('/api/enrollments', {
+        method: 'POST',
+        body: { courseId },
+      }).then((r) => r.enrollment),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ENROLLMENTS_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['student', 'courses'] });
+    },
   });
 }
 

@@ -10,6 +10,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { HomePage } from './pages/student/HomePage';
 import { CoursesPage } from './pages/student/CoursesPage';
+import { CatalogPage } from './pages/student/CatalogPage';
 import { CalendarPage } from './pages/student/CalendarPage';
 import { TrackerPage } from './pages/student/TrackerPage';
 import { MentorSessionsPage } from './pages/student/MentorSessionsPage';
@@ -83,6 +84,7 @@ export function App() {
                 <>
                   <Route index element={<HomePage />} />
                   <Route path="courses" element={<CoursesPage />} />
+                  <Route path="catalog" element={<CatalogPage />} />
                   <Route path="calendar" element={<CalendarPage />} />
                   <Route path="tracker" element={<TrackerPage />} />
                   <Route path="citadel" element={<CitadelHubPage />} />
