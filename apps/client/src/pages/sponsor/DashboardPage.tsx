@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { CalendarClock, GraduationCap, Send, Users } from 'lucide-react';
-import { usePartnerColleges, useSponsorEvents } from '../../features/sponsor/data';
+import { useBookMeet, usePartnerColleges, useSponsorEvents } from '../../features/sponsor/data';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -10,10 +10,12 @@ import { PageLoading } from '../../components/ui/PageLoading';
 export function DashboardPage() {
   const { data: events, isLoading: eventsLoading } = useSponsorEvents();
   const { data: colleges, isLoading: collegesLoading } = usePartnerColleges();
+  const bookMeet = useBookMeet();
   const [collegeFilter, setCollegeFilter] = useState('all');
   const [meetCollege, setMeetCollege] = useState('');
   const [meetSlot, setMeetSlot] = useState('');
   const [requested, setRequested] = useState(false);
+  const [bookError, setBookError] = useState<string | null>(null);
 
   const filteredEvents = useMemo(() => {
     if (!events) return [];
@@ -27,7 +29,27 @@ export function DashboardPage() {
   function handleBookMeet(event: FormEvent) {
     event.preventDefault();
     if (!meetCollege || !meetSlot) return;
-    setRequested(true);
+    const college = colleges?.find((c) => c.name === meetCollege);
+    if (!college?.contactEmail) {
+      setBookError('This college has no admin contact on file yet.');
+      return;
+    }
+    setBookError(null);
+    bookMeet.mutate(
+      {
+        contactEmail: college.contactEmail,
+        title: `Sponsor meet — ${meetCollege}`,
+        scheduledAt: new Date(meetSlot).toISOString(),
+      },
+      {
+        onSuccess: () => {
+          setRequested(true);
+          setMeetCollege('');
+          setMeetSlot('');
+        },
+        onError: () => setBookError('Could not send the meeting request. Please try again.'),
+      }
+    );
   }
 
   return (
@@ -114,11 +136,12 @@ export function DashboardPage() {
               value={meetSlot}
               onChange={(e) => setMeetSlot(e.target.value)}
             />
-            <Button type="submit">
-              <Send size={16} /> Request Meeting
+            <Button type="submit" disabled={bookMeet.isPending}>
+              <Send size={16} /> {bookMeet.isPending ? 'Sending...' : 'Request Meeting'}
             </Button>
           </form>
           {requested && <p className="mt-3 text-xs text-green-600">Meeting request sent.</p>}
+          {bookError && <p className="mt-3 text-xs text-red-600">{bookError}</p>}
         </Card>
       </div>
     </div>

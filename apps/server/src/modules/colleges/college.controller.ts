@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import { ApiError } from '../../utils/ApiError.js';
 import { createCollegeSchema } from './college.validation.js';
 import * as collegeService from './college.service.js';
-import { toCollegeDto } from './college.mapper.js';
+import { toCollegeDto, toPartnerCollegeDto } from './college.mapper.js';
 
 function requireOwnCollegeId(req: Request): string {
   if (!req.user) {
@@ -35,4 +35,9 @@ export async function myFaculty(req: Request, res: Response): Promise<void> {
   const collegeId = requireOwnCollegeId(req);
   const faculty = await collegeService.getCollegeFaculty(collegeId);
   res.json({ faculty });
+}
+
+export async function partners(_req: Request, res: Response): Promise<void> {
+  const rows = await collegeService.listPartnerColleges();
+  res.json({ colleges: rows.map(toPartnerCollegeDto) });
 }

@@ -11,7 +11,9 @@ import type { CreateBookingInput, UpdateBookingInput } from './booking.validatio
 // (Student's Mentor Sessions, Mentor's own Sessions) had their own
 // "schedule" affordance. `counterpartEmail` is whichever role the caller
 // isn't: a mentor's email when a student books, a student's email when a
-// mentor schedules.
+// mentor schedules. A Sponsor booking a College Admin (wireframe §6 "book a
+// meet") reuses the same model/field names — `mentorId` just means
+// "the other party" once a Sponsor is the requester.
 export async function createBooking(
   viewer: AuthenticatedUser,
   input: CreateBookingInput
@@ -19,7 +21,17 @@ export async function createBooking(
   let requesterId: string;
   let mentorId: string;
 
-  if (viewer.role === Role.Student) {
+  if (viewer.role === Role.Sponsor) {
+    const collegeAdmin = await UserModel.findOne({
+      email: input.counterpartEmail,
+      role: Role.CollegeAdmin,
+    });
+    if (!collegeAdmin) {
+      throw new ApiError(400, `No college admin account found for ${input.counterpartEmail}`);
+    }
+    requesterId = viewer.userId;
+    mentorId = collegeAdmin._id.toString();
+  } else if (viewer.role === Role.Student) {
     const mentor = await UserModel.findOne({
       email: input.counterpartEmail,
       role: Role.Mentor,
@@ -58,7 +70,7 @@ export async function createBooking(
     agenda: input.agenda ?? [],
   });
 
-  const notifyUserId = viewer.role === Role.Student ? mentorId : requesterId;
+  const notifyUserId = viewer.userId === requesterId ? mentorId : requesterId;
   await createNotification(
     notifyUserId,
     'booking_created',
@@ -70,9 +82,9 @@ export async function createBooking(
 }
 
 export async function listMyBookings(viewer: AuthenticatedUser): Promise<BookingDocument[]> {
-  const filter =
-    viewer.role === Role.Mentor ? { mentorId: viewer.userId } : { requesterId: viewer.userId };
-  return BookingModel.find(filter).sort({ scheduledAt: -1 });
+  return BookingModel.find({
+    $or: [{ requesterId: viewer.userId }, { mentorId: viewer.userId }],
+  }).sort({ scheduledAt: -1 });
 }
 
 function canManageBooking(booking: BookingDocument, viewer: AuthenticatedUser): boolean {

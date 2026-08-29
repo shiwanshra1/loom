@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { CheckCircle2, FileUp, MapPin, Send, Star, UserPlus } from 'lucide-react';
-import { useHrContacts, useSpeakerSessions } from '../../features/speaker/data';
+import { useHrContacts, usePostTopic, useSpeakerSessions } from '../../features/speaker/data';
 import type { SpeakerSessionStatus } from '../../features/speaker/data';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -12,6 +12,7 @@ import { PageLoading } from '../../components/ui/PageLoading';
 export function DashboardPage() {
   const { data: sessions, isLoading: sessionsLoading } = useSpeakerSessions();
   const { data: hrContacts, isLoading: hrLoading } = useHrContacts();
+  const postTopic = usePostTopic();
   const [tab, setTab] = useState<SpeakerSessionStatus>('Upcoming');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [topic, setTopic] = useState('');
@@ -27,8 +28,15 @@ export function DashboardPage() {
   function handlePostTopic(event: FormEvent) {
     event.preventDefault();
     if (!topic) return;
-    setTopicSent(true);
-    setTopic('');
+    postTopic.mutate(
+      { title: topic },
+      {
+        onSuccess: () => {
+          setTopicSent(true);
+          setTopic('');
+        },
+      }
+    );
   }
 
   return (
@@ -119,8 +127,8 @@ export function DashboardPage() {
                   setTopicSent(false);
                 }}
               />
-              <Button type="submit" disabled={!topic}>
-                <Send size={14} /> Submit
+              <Button type="submit" disabled={!topic || postTopic.isPending}>
+                <Send size={14} /> {postTopic.isPending ? 'Submitting...' : 'Submit'}
               </Button>
               {topicSent && (
                 <p className="text-xs text-green-600">Topic submitted for colleges to book.</p>

@@ -19,6 +19,13 @@ import { sprintRouter } from './modules/sprints/sprint.routes.js';
 import { certificateRouter } from './modules/certificates/certificate.routes.js';
 import { bookingRouter } from './modules/bookings/booking.routes.js';
 import { notificationRouter } from './modules/notifications/notification.routes.js';
+import { eventRouter } from './modules/events/event.routes.js';
+import { accessRequestRouter } from './modules/accessRequests/accessRequest.routes.js';
+import { communityRouter } from './modules/community/community.routes.js';
+import { speakerTopicRouter } from './modules/speakerTopics/speakerTopic.routes.js';
+import { talentPoolRouter } from './modules/talentPool/talentPool.routes.js';
+import { hrProfileRouter } from './modules/hrProfile/hrProfile.routes.js';
+import { communityMemberRouter } from './modules/communityMembers/communityMember.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -53,6 +60,13 @@ export function createApp(): Express {
   app.use('/api/certificates', certificateRouter);
   app.use('/api/bookings', bookingRouter);
   app.use('/api/notifications', notificationRouter);
+  app.use('/api/events', eventRouter);
+  app.use('/api/access-requests', accessRequestRouter);
+  app.use('/api/community', communityRouter);
+  app.use('/api/speaker-topics', speakerTopicRouter);
+  app.use('/api/talent-pool', talentPoolRouter);
+  app.use('/api/hr-profile', hrProfileRouter);
+  app.use('/api/community-members', communityMemberRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

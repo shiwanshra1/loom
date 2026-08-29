@@ -1,3 +1,5 @@
+import type { CohortPhase } from './cohort.js';
+
 // No enum values were specified in the architecture doc for partnerTier —
 // this three-tier scheme is a disclosed invention, not a spec'd contract.
 export type CollegePartnerTier = 'bronze' | 'silver' | 'gold';
@@ -22,4 +24,12 @@ export interface CollegeFacultyMemberDto {
   email: string;
   role: 'mentor' | 'trainer';
   workload: number;
+}
+
+export interface PartnerCollegeDto {
+  id: string;
+  name: string;
+  studentCount: number;
+  activePhase: CohortPhase | null;
+  contactEmail: string | null;
 }

@@ -7,16 +7,8 @@ import { create, listMine, update } from './booking.controller.js';
 
 export const bookingRouter = Router();
 
-bookingRouter.post('/', authenticate, authorize(Role.Student, Role.Mentor), asyncHandler(create));
-bookingRouter.get(
-  '/mine',
-  authenticate,
-  authorize(Role.Student, Role.Mentor),
-  asyncHandler(listMine)
-);
-bookingRouter.patch(
-  '/:id',
-  authenticate,
-  authorize(Role.Student, Role.Mentor),
-  asyncHandler(update)
-);
+const BOOKING_ROLES = [Role.Student, Role.Mentor, Role.Sponsor, Role.CollegeAdmin];
+
+bookingRouter.post('/', authenticate, authorize(...BOOKING_ROLES), asyncHandler(create));
+bookingRouter.get('/mine', authenticate, authorize(...BOOKING_ROLES), asyncHandler(listMine));
+bookingRouter.patch('/:id', authenticate, authorize(...BOOKING_ROLES), asyncHandler(update));

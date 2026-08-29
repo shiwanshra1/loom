@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-
-// Mock/placeholder — built from wireframes.md §9.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { AccessRequestDto, EventDto } from '@forge-loom/shared-types';
+import { apiRequest } from '../../lib/apiClient';
 
 export interface MediaEvent {
   id: string;
@@ -16,24 +16,67 @@ export interface AccessRequestHistory {
   status: 'Pending' | 'Approved' | 'Denied';
 }
 
-const MOCK_EVENTS: MediaEvent[] = [
-  { id: 'me-1', title: 'Hackathon Kickoff 2026', dateLabel: '5 Jun 2026', accessStatus: 'granted' },
-  { id: 'me-2', title: 'Demo Day — Cohort 4', dateLabel: '20 Jun 2026', accessStatus: 'none' },
-];
+const STATUS_LABEL: Record<AccessRequestDto['status'], AccessRequestHistory['status']> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  denied: 'Denied',
+};
 
-const MOCK_HISTORY: AccessRequestHistory[] = [
-  { id: 'h-1', itemTitle: 'Citadel 2.0 Summit', requestedLabel: '3 days ago', status: 'Approved' },
-  {
-    id: 'h-2',
-    itemTitle: 'Mentor Panel Discussion',
-    requestedLabel: '1 week ago',
-    status: 'Denied',
-  },
-];
+function dateLabel(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
 
 export function useMediaEvents() {
-  return useQuery({ queryKey: ['media', 'events'], queryFn: () => Promise.resolve(MOCK_EVENTS) });
+  return useQuery({
+    queryKey: ['media', 'events'],
+    queryFn: async () => {
+      const [{ events }, { requests }] = await Promise.all([
+        apiRequest<{ events: EventDto[] }>('/api/events'),
+        apiRequest<{ requests: AccessRequestDto[] }>('/api/access-requests/mine'),
+      ]);
+      const statusByEventId = new Map(requests.map((r) => [r.eventId, r.status]));
+
+      return events.map((e): MediaEvent => {
+        const requestStatus = statusByEventId.get(e.id);
+        return {
+          id: e.id,
+          title: e.title,
+          dateLabel: dateLabel(e.scheduledAt),
+          accessStatus:
+            requestStatus === 'approved' ? 'granted' : requestStatus ? 'requested' : 'none',
+        };
+      });
+    },
+  });
 }
+
+export function useRequestAccess() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (eventId: string) =>
+      apiRequest(`/api/access-requests/events/${eventId}`, { method: 'POST' }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['media', 'events'] });
+      void queryClient.invalidateQueries({ queryKey: ['media', 'history'] });
+    },
+  });
+}
+
 export function useAccessHistory() {
-  return useQuery({ queryKey: ['media', 'history'], queryFn: () => Promise.resolve(MOCK_HISTORY) });
+  return useQuery({
+    queryKey: ['media', 'history'],
+    queryFn: () =>
+      apiRequest<{ requests: AccessRequestDto[] }>('/api/access-requests/mine').then((r) =>
+        r.requests.map((req): AccessRequestHistory => ({
+          id: req.id,
+          itemTitle: req.eventTitle,
+          requestedLabel: dateLabel(req.requestedAt),
+          status: STATUS_LABEL[req.status],
+        }))
+      ),
+  });
 }

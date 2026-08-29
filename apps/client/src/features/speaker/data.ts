@@ -1,7 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-
-// Mock/placeholder — built from wireframes.md §4 (no visual reference exists
-// for this role).
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { HrDirectoryEntryDto, SpeakerTopicDto } from '@forge-loom/shared-types';
+import { apiRequest } from '../../lib/apiClient';
 
 export type SpeakerSessionStatus = 'Upcoming' | 'Past';
 
@@ -22,41 +21,59 @@ export interface HrContact {
   contactName: string;
 }
 
-const MOCK_SESSIONS: SpeakerSession[] = [
-  {
-    id: 'sp-1',
-    title: 'Building Scalable APIs',
-    dateLabel: '2 Jun 2026 · 3:00 PM',
-    venue: 'Auditorium, Main Block',
-    status: 'Upcoming',
-    agenda: ['API design principles', 'Live Q&A', 'Career advice'],
-  },
-  {
-    id: 'sp-2',
-    title: 'Design Systems in Practice',
-    dateLabel: '18 May 2026 · 2:00 PM',
-    venue: 'Seminar Hall',
-    status: 'Past',
-    agenda: ['Design tokens', 'Component libraries'],
-    feedbackAverage: 4.7,
-    feedbackCount: 42,
-  },
-];
-
-const MOCK_HR_CONTACTS: HrContact[] = [
-  { id: 'hr-1', companyName: 'TechNova', contactName: 'Meera Iyer' },
-  { id: 'hr-2', companyName: 'Acme Corp', contactName: 'Sanjay Rao' },
-];
+function toSession(topic: SpeakerTopicDto): SpeakerSession {
+  const isPast =
+    topic.status === 'booked' &&
+    !!topic.scheduledAt &&
+    new Date(topic.scheduledAt).getTime() < Date.now();
+  return {
+    id: topic.id,
+    title: topic.title,
+    dateLabel: topic.scheduledAt
+      ? new Date(topic.scheduledAt).toLocaleString(undefined, {
+          day: 'numeric',
+          month: 'short',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : 'Not yet scheduled',
+    venue: topic.venue ?? 'TBD',
+    status: isPast ? 'Past' : 'Upcoming',
+    agenda: topic.description ? [topic.description] : [],
+  };
+}
 
 export function useSpeakerSessions() {
   return useQuery({
     queryKey: ['speaker', 'sessions'],
-    queryFn: () => Promise.resolve(MOCK_SESSIONS),
+    queryFn: () =>
+      apiRequest<{ topics: SpeakerTopicDto[] }>('/api/speaker-topics/mine').then((r) =>
+        r.topics.map(toSession)
+      ),
   });
 }
+
+export function usePostTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { title: string }) =>
+      apiRequest('/api/speaker-topics', { method: 'POST', body: { title: input.title } }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['speaker', 'sessions'] });
+    },
+  });
+}
+
 export function useHrContacts() {
   return useQuery({
     queryKey: ['speaker', 'hr-contacts'],
-    queryFn: () => Promise.resolve(MOCK_HR_CONTACTS),
+    queryFn: () =>
+      apiRequest<{ entries: HrDirectoryEntryDto[] }>('/api/hr-profile/directory').then((r) =>
+        r.entries.map((entry, index): HrContact => ({
+          id: `${entry.contactEmail}-${index}`,
+          companyName: entry.companyName,
+          contactName: entry.contactEmail,
+        }))
+      ),
   });
 }

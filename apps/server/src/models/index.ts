@@ -29,3 +29,8 @@ export * from './ScoreEvent.js';
 export * from './Certificate.js';
 export * from './Booking.js';
 export * from './Notification.js';
+export * from './Event.js';
+export * from './EventRegistration.js';
+export * from './AccessRequest.js';
+export * from './CommunityPost.js';
+export * from './SpeakerTopic.js';

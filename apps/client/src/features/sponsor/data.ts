@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-
-// Mock/placeholder — built from wireframes.md §6.
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { BookingDto, EventDto, PartnerCollegeDto } from '@forge-loom/shared-types';
+import { apiRequest } from '../../lib/apiClient';
 
 export interface SponsorEvent {
   id: string;
@@ -14,40 +14,66 @@ export interface PartnerCollege {
   name: string;
   studentCount: number;
   activePhase: string;
+  contactEmail: string | null;
 }
 
-const MOCK_EVENTS: SponsorEvent[] = [
-  {
-    id: 'sev-1',
-    title: 'Hackathon Kickoff 2026',
-    college: 'Forge Institute of Technology',
-    dateLabel: '5 Jun 2026',
-  },
-  {
-    id: 'sev-2',
-    title: 'Demo Day — Cohort 4',
-    college: 'Riverside College of Engineering',
-    dateLabel: '20 Jun 2026',
-  },
-];
-
-const MOCK_COLLEGES: PartnerCollege[] = [
-  { id: 'col-1', name: 'Forge Institute of Technology', studentCount: 420, activePhase: 'Citadel' },
-  {
-    id: 'col-2',
-    name: 'Riverside College of Engineering',
-    studentCount: 310,
-    activePhase: 'Bootcamp',
-  },
-  { id: 'col-3', name: 'Northgate University', studentCount: 275, activePhase: 'Activation' },
-];
+const PHASE_LABEL: Record<string, string> = {
+  activation: 'Activation',
+  bootcamp: 'Bootcamp',
+  citadel: 'Citadel',
+};
 
 export function useSponsorEvents() {
-  return useQuery({ queryKey: ['sponsor', 'events'], queryFn: () => Promise.resolve(MOCK_EVENTS) });
+  return useQuery({
+    queryKey: ['sponsor', 'events'],
+    queryFn: () =>
+      apiRequest<{ events: EventDto[] }>('/api/events').then((r) =>
+        r.events.map((e): SponsorEvent => ({
+          id: e.id,
+          title: e.title,
+          college: e.collegeName ?? 'Unaffiliated',
+          dateLabel: new Date(e.scheduledAt).toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          }),
+        }))
+      ),
+  });
 }
+
 export function usePartnerColleges() {
   return useQuery({
     queryKey: ['sponsor', 'colleges'],
-    queryFn: () => Promise.resolve(MOCK_COLLEGES),
+    queryFn: () =>
+      apiRequest<{ colleges: PartnerCollegeDto[] }>('/api/colleges/partners').then((r) =>
+        r.colleges.map((c): PartnerCollege => ({
+          id: c.id,
+          name: c.name,
+          studentCount: c.studentCount,
+          activePhase: c.activePhase
+            ? (PHASE_LABEL[c.activePhase] ?? c.activePhase)
+            : 'Not started',
+          contactEmail: c.contactEmail,
+        }))
+      ),
+  });
+}
+
+export function useBookMeet() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { contactEmail: string; title: string; scheduledAt: string }) =>
+      apiRequest<{ booking: BookingDto }>('/api/bookings', {
+        method: 'POST',
+        body: {
+          counterpartEmail: input.contactEmail,
+          title: input.title,
+          scheduledAt: input.scheduledAt,
+        },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['sponsor', 'bookings'] });
+    },
   });
 }

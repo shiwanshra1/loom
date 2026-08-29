@@ -1,24 +1,22 @@
-import { useState } from 'react';
 import { CalendarClock, MessageSquare } from 'lucide-react';
-import { useMemberEvents, useMemberFeed } from '../../features/member/data';
-import type { MemberEvent } from '../../features/member/data';
+import { useMemberEvents, useMemberFeed, useRegisterForEvent } from '../../features/member/data';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { PageLoading } from '../../components/ui/PageLoading';
 
 export function DashboardPage() {
   const { data: feed, isLoading: feedLoading } = useMemberFeed();
-  const { data: initialEvents, isLoading: eventsLoading } = useMemberEvents();
-  const [events, setEvents] = useState<MemberEvent[] | undefined>(undefined);
+  const { data: events, isLoading: eventsLoading } = useMemberEvents();
+  const registerMutation = useRegisterForEvent();
 
   if (feedLoading || eventsLoading) {
     return <PageLoading />;
   }
 
-  const list = events ?? initialEvents ?? [];
+  const list = events ?? [];
 
   function register(id: string) {
-    setEvents(list.map((event) => (event.id === id ? { ...event, registered: true } : event)));
+    registerMutation.mutate(id);
   }
 
   return (

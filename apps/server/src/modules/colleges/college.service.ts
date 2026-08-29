@@ -1,4 +1,8 @@
-import type { CollegeFacultyMemberDto, CollegeProgramDto } from '@forge-loom/shared-types';
+import {
+  Role,
+  type CollegeFacultyMemberDto,
+  type CollegeProgramDto,
+} from '@forge-loom/shared-types';
 import { CollegeModel, type CollegeDocument } from '../../models/College.js';
 import { StudentProfileModel } from '../../models/StudentProfile.js';
 import { TrainerProfileModel } from '../../models/TrainerProfile.js';
@@ -6,6 +10,7 @@ import { MentorProfileModel } from '../../models/MentorProfile.js';
 import { EnrollmentModel } from '../../models/Enrollment.js';
 import { CourseModel } from '../../models/Course.js';
 import { UserModel } from '../../models/User.js';
+import { CohortModel } from '../../models/Cohort.js';
 import type { CreateCollegeInput } from './college.validation.js';
 
 export async function createCollege(input: CreateCollegeInput): Promise<CollegeDocument> {
@@ -45,6 +50,51 @@ export async function getCollegePrograms(collegeId: string): Promise<CollegeProg
     title: course.title,
     status: course.status,
     studentsEnrolled: countByCourseId.get(course._id.toString()) ?? 0,
+  }));
+}
+
+export interface PartnerCollegeRow {
+  college: CollegeDocument;
+  studentCount: number;
+  activePhase: 'activation' | 'bootcamp' | 'citadel' | null;
+  contactEmail: string | null;
+}
+
+// Sponsor-facing directory (wireframe §6) — "active cohort phase" picks each
+// college's most recently started cohort rather than trying to define a
+// single canonical "current" cohort, since the schema doesn't mark one.
+export async function listPartnerColleges(): Promise<PartnerCollegeRow[]> {
+  const colleges = await CollegeModel.find().sort({ name: 1 });
+  const collegeIds = colleges.map((c) => c._id);
+
+  const [studentCounts, latestCohorts, collegeAdmins] = await Promise.all([
+    StudentProfileModel.aggregate<{ _id: string; count: number }>([
+      { $match: { collegeId: { $in: collegeIds } } },
+      { $group: { _id: '$collegeId', count: { $sum: 1 } } },
+    ]),
+    CohortModel.find({ collegeId: { $in: collegeIds } }).sort({ startDate: -1 }),
+    UserModel.find({ role: Role.CollegeAdmin, collegeId: { $in: collegeIds } }),
+  ]);
+
+  const studentCountByCollege = new Map(
+    studentCounts.map((row) => [row._id.toString(), row.count])
+  );
+  const latestPhaseByCollege = new Map<string, 'activation' | 'bootcamp' | 'citadel'>();
+  for (const cohort of latestCohorts) {
+    const key = cohort.collegeId.toString();
+    if (!latestPhaseByCollege.has(key)) {
+      latestPhaseByCollege.set(key, cohort.phase);
+    }
+  }
+  const contactEmailByCollege = new Map(
+    collegeAdmins.map((admin) => [admin.collegeId!.toString(), admin.email])
+  );
+
+  return colleges.map((college) => ({
+    college,
+    studentCount: studentCountByCollege.get(college._id.toString()) ?? 0,
+    activePhase: latestPhaseByCollege.get(college._id.toString()) ?? null,
+    contactEmail: contactEmailByCollege.get(college._id.toString()) ?? null,
   }));
 }
 

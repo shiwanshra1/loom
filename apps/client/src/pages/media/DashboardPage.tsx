@@ -1,29 +1,23 @@
-import { useState } from 'react';
 import { CalendarClock, History, Lock, LockOpen } from 'lucide-react';
-import { useAccessHistory, useMediaEvents } from '../../features/media/data';
-import type { MediaEvent } from '../../features/media/data';
+import { useAccessHistory, useMediaEvents, useRequestAccess } from '../../features/media/data';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { PageLoading } from '../../components/ui/PageLoading';
 
 export function DashboardPage() {
-  const { data: initialEvents, isLoading: eventsLoading } = useMediaEvents();
+  const { data: events, isLoading: eventsLoading } = useMediaEvents();
   const { data: history, isLoading: historyLoading } = useAccessHistory();
-  const [events, setEvents] = useState<MediaEvent[] | undefined>(undefined);
+  const requestAccessMutation = useRequestAccess();
 
   if (eventsLoading || historyLoading) {
     return <PageLoading />;
   }
 
-  const list = events ?? initialEvents ?? [];
+  const list = events ?? [];
 
   function requestAccess(id: string) {
-    setEvents(
-      list.map((event) =>
-        event.id === id ? { ...event, accessStatus: 'requested' as const } : event
-      )
-    );
+    requestAccessMutation.mutate(id);
   }
 
   return (

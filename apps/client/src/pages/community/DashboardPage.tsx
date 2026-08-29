@@ -1,6 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { CalendarPlus, MessageSquare, UserPlus } from 'lucide-react';
-import { useCommunityFeed, useCommunityMembers } from '../../features/community/data';
+import type { EventType } from '@forge-loom/shared-types';
+import {
+  useCommunityFeed,
+  useCommunityMembers,
+  useHostEvent,
+  useInviteMember,
+} from '../../features/community/data';
 import type { CommunityMemberRole } from '../../features/community/data';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
@@ -8,7 +14,12 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { PageLoading } from '../../components/ui/PageLoading';
 
-const EVENT_TYPES = ['Hackathon', 'Seminar', 'Workshop', 'Other'] as const;
+const EVENT_TYPES: { label: string; value: EventType }[] = [
+  { label: 'Hackathon', value: 'hackathon' },
+  { label: 'Seminar', value: 'seminar' },
+  { label: 'Workshop', value: 'workshop' },
+  { label: 'Other', value: 'other' },
+];
 const ROLE_BADGE: Record<CommunityMemberRole, 'blue' | 'green' | 'slate'> = {
   Lead: 'blue',
   Volunteer: 'green',
@@ -18,13 +29,18 @@ const ROLE_BADGE: Record<CommunityMemberRole, 'blue' | 'green' | 'slate'> = {
 export function DashboardPage() {
   const { data: members, isLoading: membersLoading } = useCommunityMembers();
   const { data: feed, isLoading: feedLoading } = useCommunityFeed();
+  const hostEvent = useHostEvent();
+  const inviteMember = useInviteMember();
 
-  const [eventType, setEventType] = useState<(typeof EVENT_TYPES)[number]>('Hackathon');
+  const [eventType, setEventType] = useState<EventType>('hackathon');
   const [eventTitle, setEventTitle] = useState('');
+  const [eventSlot, setEventSlot] = useState('');
   const [hosted, setHosted] = useState(false);
 
   const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<CommunityMemberRole>('Volunteer');
   const [invited, setInvited] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   if (membersLoading || feedLoading) {
     return <PageLoading />;
@@ -32,16 +48,33 @@ export function DashboardPage() {
 
   function handleHostEvent(event: FormEvent) {
     event.preventDefault();
-    if (!eventTitle) return;
-    setHosted(true);
-    setEventTitle('');
+    if (!eventTitle || !eventSlot) return;
+    hostEvent.mutate(
+      { title: eventTitle, type: eventType, scheduledAt: new Date(eventSlot).toISOString() },
+      {
+        onSuccess: () => {
+          setHosted(true);
+          setEventTitle('');
+          setEventSlot('');
+        },
+      }
+    );
   }
 
   function handleInvite(event: FormEvent) {
     event.preventDefault();
     if (!inviteEmail) return;
-    setInvited(true);
-    setInviteEmail('');
+    setInviteError(null);
+    inviteMember.mutate(
+      { email: inviteEmail, role: inviteRole },
+      {
+        onSuccess: () => {
+          setInvited(true);
+          setInviteEmail('');
+        },
+        onError: () => setInviteError('No account found for that email.'),
+      }
+    );
   }
 
   return (
@@ -60,14 +93,16 @@ export function DashboardPage() {
             <div className="flex flex-wrap gap-2">
               {EVENT_TYPES.map((type) => (
                 <button
-                  key={type}
+                  key={type.value}
                   type="button"
-                  onClick={() => setEventType(type)}
+                  onClick={() => setEventType(type.value)}
                   className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                    eventType === type ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600'
+                    eventType === type.value
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {type}
+                  {type.label}
                 </button>
               ))}
             </div>
@@ -76,8 +111,15 @@ export function DashboardPage() {
               value={eventTitle}
               onChange={(e) => setEventTitle(e.target.value)}
             />
-            <Button type="submit" disabled={!eventTitle}>
-              Host {eventType}
+            <Input
+              type="datetime-local"
+              value={eventSlot}
+              onChange={(e) => setEventSlot(e.target.value)}
+            />
+            <Button type="submit" disabled={!eventTitle || !eventSlot || hostEvent.isPending}>
+              {hostEvent.isPending
+                ? 'Hosting...'
+                : `Host ${EVENT_TYPES.find((t) => t.value === eventType)?.label}`}
             </Button>
             {hosted && <p className="text-xs text-green-600">Event created.</p>}
           </form>
@@ -87,18 +129,29 @@ export function DashboardPage() {
           <h2 className="mb-4 flex items-center gap-2 font-semibold text-slate-900">
             <UserPlus size={16} /> Add Community Members
           </h2>
-          <form onSubmit={handleInvite} className="mb-4 flex gap-2">
+          <form onSubmit={handleInvite} className="mb-4 flex flex-wrap gap-2">
             <Input
               type="email"
+              className="flex-1"
               placeholder="Invite by email"
               value={inviteEmail}
               onChange={(e) => setInviteEmail(e.target.value)}
             />
-            <Button type="submit" disabled={!inviteEmail}>
-              Invite
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as CommunityMemberRole)}
+              className="rounded-lg border border-slate-200 px-2 py-1 text-sm text-slate-700"
+            >
+              <option value="Lead">Lead</option>
+              <option value="Volunteer">Volunteer</option>
+              <option value="Public">Public</option>
+            </select>
+            <Button type="submit" disabled={!inviteEmail || inviteMember.isPending}>
+              {inviteMember.isPending ? 'Inviting...' : 'Invite'}
             </Button>
           </form>
-          {invited && <p className="mb-3 text-xs text-green-600">Invite sent.</p>}
+          {invited && <p className="mb-3 text-xs text-green-600">Member added.</p>}
+          {inviteError && <p className="mb-3 text-xs text-red-600">{inviteError}</p>}
           <div className="flex flex-col divide-y divide-slate-100">
             {members?.map((member) => (
               <div

@@ -1,7 +1,11 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, CalendarClock, Send, Users } from 'lucide-react';
-import { useHrCompanyProfile, useHrUpcomingEvents } from '../../features/hr/data';
+import {
+  useCreateOpportunity,
+  useHrCompanyProfile,
+  useHrUpcomingEvents,
+} from '../../features/hr/data';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -10,6 +14,7 @@ import { PageLoading } from '../../components/ui/PageLoading';
 export function DashboardPage() {
   const { data: company, isLoading: companyLoading } = useHrCompanyProfile();
   const { data: events, isLoading: eventsLoading } = useHrUpcomingEvents();
+  const createOpportunity = useCreateOpportunity();
   const [role, setRole] = useState('');
   const [description, setDescription] = useState('');
   const [posted, setPosted] = useState(false);
@@ -21,9 +26,16 @@ export function DashboardPage() {
   function handlePost(event: FormEvent) {
     event.preventDefault();
     if (!role || !description) return;
-    setPosted(true);
-    setRole('');
-    setDescription('');
+    createOpportunity.mutate(
+      { title: role, description },
+      {
+        onSuccess: () => {
+          setPosted(true);
+          setRole('');
+          setDescription('');
+        },
+      }
+    );
   }
 
   return (
@@ -93,8 +105,8 @@ export function DashboardPage() {
                 placeholder="Describe the role and evaluation criteria"
               />
             </div>
-            <Button type="submit" className="sm:col-span-2">
-              <Send size={16} /> Post Opportunity
+            <Button type="submit" className="sm:col-span-2" disabled={createOpportunity.isPending}>
+              <Send size={16} /> {createOpportunity.isPending ? 'Posting...' : 'Post Opportunity'}
             </Button>
             {posted && <p className="text-xs text-green-600 sm:col-span-2">Opportunity posted.</p>}
           </form>
