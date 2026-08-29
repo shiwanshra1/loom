@@ -12,6 +12,7 @@
     "seed": "npm run build --workspace=packages/shared-types && npm run seed --workspace=apps/server",
     "build": "npm run build --workspace=packages/shared-types && npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run build --workspace=packages/shared-types && npm run test --workspace=apps/server",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

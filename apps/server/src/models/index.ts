@@ -34,3 +34,4 @@ export * from './EventRegistration.js';
 export * from './AccessRequest.js';
 export * from './CommunityPost.js';
 export * from './SpeakerTopic.js';
+export * from './Placement.js';

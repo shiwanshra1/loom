@@ -4,15 +4,19 @@ import {
   nextPhase,
   useAdminCohorts,
   useAdminUsers,
+  useAdvanceCohortPhase,
+  useAnalytics,
   useNationalStats,
+  useUpdateUserStatus,
 } from '../../features/admin/data';
-import type { AdminCohort, AdminUserRow } from '../../features/admin/data';
+import type { AdminCohort } from '../../features/admin/data';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { StatCard } from '../../components/ui/StatCard';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { PageLoading } from '../../components/ui/PageLoading';
+import { SimpleLineChart } from '../../components/charts/SimpleLineChart';
 
 const STATUS_BADGE = {
   active: { tone: 'green' as const, label: 'Active' },
@@ -28,40 +32,34 @@ const PHASE_BADGE: Record<AdminCohort['phase'], 'slate' | 'blue' | 'purple'> = {
 
 export function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useNationalStats();
-  const { data: initialUsers, isLoading: usersLoading } = useAdminUsers();
-  const { data: initialCohorts, isLoading: cohortsLoading } = useAdminCohorts();
+  const { data: userList, isLoading: usersLoading } = useAdminUsers();
+  const { data: cohortList, isLoading: cohortsLoading } = useAdminCohorts();
+  const { data: analytics, isLoading: analyticsLoading } = useAnalytics();
+  const updateUserStatus = useUpdateUserStatus();
+  const advanceCohortPhase = useAdvanceCohortPhase();
 
-  const [users, setUsers] = useState<AdminUserRow[] | undefined>(undefined);
-  const [cohorts, setCohorts] = useState<AdminCohort[] | undefined>(undefined);
   const [query, setQuery] = useState('');
-
-  const userList = users ?? initialUsers ?? [];
-  const cohortList = cohorts ?? initialCohorts ?? [];
 
   const trimmedQuery = query.trim().toLowerCase();
   const filteredUsers = trimmedQuery
-    ? userList.filter(
+    ? (userList ?? []).filter(
         (u) =>
           u.name.toLowerCase().includes(trimmedQuery) ||
           u.email.toLowerCase().includes(trimmedQuery) ||
           u.role.includes(trimmedQuery)
       )
-    : userList;
+    : (userList ?? []);
 
-  if (statsLoading || usersLoading || cohortsLoading) {
+  if (statsLoading || usersLoading || cohortsLoading || analyticsLoading) {
     return <PageLoading />;
   }
 
-  function toggleSuspend(id: string) {
-    setUsers(
-      userList.map((u) =>
-        u.id === id ? { ...u, status: u.status === 'suspended' ? 'active' : 'suspended' } : u
-      )
-    );
+  function toggleSuspend(id: string, currentStatus: string) {
+    updateUserStatus.mutate({ id, status: currentStatus === 'suspended' ? 'active' : 'suspended' });
   }
 
-  function advanceCohort(id: string) {
-    setCohorts(cohortList.map((c) => (c.id === id ? { ...c, phase: nextPhase(c.phase) } : c)));
+  function advanceCohort(id: string, currentPhase: AdminCohort['phase']) {
+    advanceCohortPhase.mutate({ id, phase: nextPhase(currentPhase) });
   }
 
   return (
@@ -88,7 +86,12 @@ export function DashboardPage() {
         <StatCard
           icon={TrendingUp}
           label="Employability Lift"
-          value={`${stats?.employabilityLiftPercent ?? 0}%`}
+          value={
+            stats?.employabilityLiftPercent === null ||
+            stats?.employabilityLiftPercent === undefined
+              ? 'No data yet'
+              : `${stats.employabilityLiftPercent}%`
+          }
           iconClassName="bg-amber-50 text-amber-600"
         />
       </div>
@@ -121,7 +124,7 @@ export function DashboardPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge tone={badge.tone}>{badge.label}</Badge>
-                    <Button variant="secondary" onClick={() => toggleSuspend(user.id)}>
+                    <Button variant="secondary" onClick={() => toggleSuspend(user.id, user.status)}>
                       <ShieldCheck size={14} />{' '}
                       {user.status === 'suspended' ? 'Reinstate' : 'Suspend'}
                     </Button>
@@ -135,7 +138,7 @@ export function DashboardPage() {
         <Card>
           <h2 className="mb-4 font-semibold text-slate-900">Cohort / Phase Management</h2>
           <div className="flex flex-col divide-y divide-slate-100">
-            {cohortList.map((cohort) => (
+            {(cohortList ?? []).map((cohort) => (
               <div
                 key={cohort.id}
                 className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
@@ -149,7 +152,7 @@ export function DashboardPage() {
                   <Button
                     variant="secondary"
                     disabled={cohort.phase === 'Citadel'}
-                    onClick={() => advanceCohort(cohort.id)}
+                    onClick={() => advanceCohort(cohort.id, cohort.phase)}
                   >
                     Advance
                   </Button>
@@ -159,6 +162,63 @@ export function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {analytics && (
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card>
+            <h2 className="mb-4 font-semibold text-slate-900">Citadel Funnel</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard
+                icon={Users}
+                label="Interested"
+                value={String(analytics.citadelFunnel.interested)}
+              />
+              <StatCard
+                icon={Users}
+                label="Teams Formed"
+                value={String(analytics.citadelFunnel.teamsFormed)}
+                iconClassName="bg-blue-50 text-blue-600"
+              />
+              <StatCard
+                icon={Rocket}
+                label="Sprints Completed"
+                value={String(analytics.citadelFunnel.sprintsCompleted)}
+                iconClassName="bg-purple-50 text-purple-600"
+              />
+              <StatCard
+                icon={TrendingUp}
+                label="Investor Access"
+                value={String(analytics.citadelFunnel.investorGranted)}
+                iconClassName="bg-green-50 text-green-600"
+              />
+            </div>
+            <p className="mt-3 text-xs text-slate-500">
+              Course completion rate: {analytics.courseCompletionRatePercent}%
+            </p>
+          </Card>
+
+          <Card>
+            <h2 className="mb-4 font-semibold text-slate-900">Attendance Trend (last 7 days)</h2>
+            <SimpleLineChart
+              points={analytics.attendanceTrend.map((p) => p.ratePercent)}
+              labels={analytics.attendanceTrend.map((p) => p.dateLabel)}
+            />
+          </Card>
+
+          <Card className="lg:col-span-2">
+            <h2 className="mb-4 font-semibold text-slate-900">Builder Score Distribution</h2>
+            <SimpleLineChart
+              points={analytics.scoreDistribution.map((bucket) => {
+                const maxCount = Math.max(1, ...analytics.scoreDistribution.map((b) => b.count));
+                return (bucket.count / maxCount) * 100;
+              })}
+              labels={analytics.scoreDistribution.map(
+                (bucket) => `${bucket.label} (${bucket.count})`
+              )}
+            />
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

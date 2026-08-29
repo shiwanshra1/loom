@@ -1,7 +1,12 @@
 import { config } from 'dotenv';
 import path from 'node:path';
 
-const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+const envFile =
+  process.env.NODE_ENV === 'production'
+    ? '.env.production'
+    : process.env.NODE_ENV === 'test'
+      ? '.env.test'
+      : '.env.local';
 config({ path: path.resolve(process.cwd(), envFile) });
 
 function required(name: string): string {

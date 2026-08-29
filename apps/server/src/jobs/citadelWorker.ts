@@ -13,7 +13,7 @@ import {
 
 // The Citadel state machine's one automated rule: once a team's 3rd sprint
 // cycle reaches `complete`, investor access is granted with no manual step.
-async function checkInvestorUnlock(teamId: string): Promise<void> {
+export async function checkInvestorUnlock(teamId: string): Promise<void> {
   const alreadyGranted = await InvestorAccessGrantModel.exists({ teamId });
   if (alreadyGranted) {
     return;

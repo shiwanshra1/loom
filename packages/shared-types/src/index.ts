@@ -20,3 +20,5 @@ export * from './communityPost.js';
 export * from './speakerTopic.js';
 export * from './talentPool.js';
 export * from './hrProfile.js';
+export * from './adminAnalytics.js';
+export * from './placement.js';

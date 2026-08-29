@@ -1,14 +1,19 @@
-import { useQuery } from '@tanstack/react-query';
-
-// Mock/placeholder — built from wireframes.md §11 (Forge Admin isn't in the
-// original source material by name, but required by the architecture doc's
-// superuser role for cross-college oversight).
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  AdminUserRowDto,
+  AnalyticsDto,
+  CohortDto,
+  CohortPhase as ServerCohortPhase,
+  CollegeDto,
+  NationalStatsDto,
+} from '@forge-loom/shared-types';
+import { apiRequest } from '../../lib/apiClient';
 
 export interface NationalStats {
   totalColleges: number;
   totalStudents: number;
   venturesLaunched: number;
-  employabilityLiftPercent: number;
+  employabilityLiftPercent: number | null;
 }
 
 export type UserStatus = 'active' | 'pending_verification' | 'suspended';
@@ -31,54 +36,16 @@ export interface AdminCohort {
   phase: CohortPhase;
 }
 
-const MOCK_NATIONAL_STATS: NationalStats = {
-  totalColleges: 12,
-  totalStudents: 4820,
-  venturesLaunched: 96,
-  employabilityLiftPercent: 34,
+const PHASE_TO_CLIENT: Record<ServerCohortPhase, CohortPhase> = {
+  activation: 'Activation',
+  bootcamp: 'Bootcamp',
+  citadel: 'Citadel',
 };
-
-const MOCK_USERS: AdminUserRow[] = [
-  {
-    id: 'u-1',
-    name: 'Rahul Verma',
-    email: 'rahul.verma@example.com',
-    role: 'student',
-    college: 'Forge Institute of Technology',
-    status: 'active',
-  },
-  {
-    id: 'u-2',
-    name: 'Rohit Verma',
-    email: 'rohit.verma@example.com',
-    role: 'mentor',
-    college: 'Forge Institute of Technology',
-    status: 'active',
-  },
-  {
-    id: 'u-3',
-    name: 'Ananya Rao',
-    email: 'ananya.rao@example.com',
-    role: 'trainer',
-    college: 'Riverside College of Engineering',
-    status: 'active',
-  },
-  {
-    id: 'u-4',
-    name: 'Sanjay Rao',
-    email: 'sanjay.rao@example.com',
-    role: 'hr',
-    college: '—',
-    status: 'pending_verification',
-  },
-];
-
-const MOCK_COHORTS: AdminCohort[] = [
-  { id: 'c-1', name: 'Cohort 4', college: 'Forge Institute of Technology', phase: 'Citadel' },
-  { id: 'c-2', name: 'Cohort 5', college: 'Riverside College of Engineering', phase: 'Bootcamp' },
-  { id: 'c-3', name: 'Cohort 1', college: 'Northgate University', phase: 'Activation' },
-];
-
+const PHASE_TO_SERVER: Record<CohortPhase, ServerCohortPhase> = {
+  Activation: 'activation',
+  Bootcamp: 'bootcamp',
+  Citadel: 'citadel',
+};
 const PHASE_ORDER: CohortPhase[] = ['Activation', 'Bootcamp', 'Citadel'];
 
 export function nextPhase(phase: CohortPhase): CohortPhase {
@@ -86,15 +53,81 @@ export function nextPhase(phase: CohortPhase): CohortPhase {
   return PHASE_ORDER[Math.min(index + 1, PHASE_ORDER.length - 1)] ?? phase;
 }
 
+export function useAnalytics() {
+  return useQuery({
+    queryKey: ['admin', 'analytics'],
+    queryFn: () => apiRequest<AnalyticsDto>('/api/admin/analytics'),
+  });
+}
+
 export function useNationalStats() {
   return useQuery({
     queryKey: ['admin', 'national-stats'],
-    queryFn: () => Promise.resolve(MOCK_NATIONAL_STATS),
+    queryFn: () => apiRequest<NationalStatsDto>('/api/admin/national-stats'),
   });
 }
+
 export function useAdminUsers() {
-  return useQuery({ queryKey: ['admin', 'users'], queryFn: () => Promise.resolve(MOCK_USERS) });
+  return useQuery({
+    queryKey: ['admin', 'users'],
+    queryFn: () =>
+      apiRequest<{ users: AdminUserRowDto[] }>('/api/admin/users').then((r) =>
+        r.users.map((u): AdminUserRow => ({
+          id: u.id,
+          name: u.email,
+          email: u.email,
+          role: u.role,
+          college: u.collegeName ?? '—',
+          status: u.status,
+        }))
+      ),
+  });
 }
+
+export function useUpdateUserStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; status: 'active' | 'suspended' }) =>
+      apiRequest(`/api/admin/users/${input.id}/status`, {
+        method: 'PATCH',
+        body: { status: input.status },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
 export function useAdminCohorts() {
-  return useQuery({ queryKey: ['admin', 'cohorts'], queryFn: () => Promise.resolve(MOCK_COHORTS) });
+  return useQuery({
+    queryKey: ['admin', 'cohorts'],
+    queryFn: async () => {
+      const [{ cohorts }, { colleges }] = await Promise.all([
+        apiRequest<{ cohorts: CohortDto[] }>('/api/cohorts'),
+        apiRequest<{ colleges: CollegeDto[] }>('/api/colleges'),
+      ]);
+      const nameByCollegeId = new Map(colleges.map((c) => [c.id, c.name]));
+
+      return cohorts.map((cohort): AdminCohort => ({
+        id: cohort.id,
+        name: cohort.name,
+        college: nameByCollegeId.get(cohort.collegeId) ?? 'Unknown college',
+        phase: PHASE_TO_CLIENT[cohort.phase],
+      }));
+    },
+  });
+}
+
+export function useAdvanceCohortPhase() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; phase: CohortPhase }) =>
+      apiRequest(`/api/cohorts/${input.id}/phase`, {
+        method: 'PATCH',
+        body: { phase: PHASE_TO_SERVER[input.phase] },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'cohorts'] });
+    },
+  });
 }

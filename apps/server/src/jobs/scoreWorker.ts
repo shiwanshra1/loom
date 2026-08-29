@@ -26,7 +26,7 @@ function average(points: number[]): number {
   return points.length > 0 ? points.reduce((sum, p) => sum + p, 0) / points.length : 0;
 }
 
-async function recomputeBuilderScore(studentId: string): Promise<void> {
+export async function recomputeBuilderScore(studentId: string): Promise<void> {
   const events = await ScoreEventModel.find({ studentId });
   const byCategory: Record<ScoreCategory, number[]> = {
     events: [],

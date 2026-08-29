@@ -26,6 +26,7 @@ import { speakerTopicRouter } from './modules/speakerTopics/speakerTopic.routes.
 import { talentPoolRouter } from './modules/talentPool/talentPool.routes.js';
 import { hrProfileRouter } from './modules/hrProfile/hrProfile.routes.js';
 import { communityMemberRouter } from './modules/communityMembers/communityMember.routes.js';
+import { adminRouter } from './modules/admin/admin.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -67,6 +68,7 @@ export function createApp(): Express {
   app.use('/api/talent-pool', talentPoolRouter);
   app.use('/api/hr-profile', hrProfileRouter);
   app.use('/api/community-members', communityMemberRouter);
+  app.use('/api/admin', adminRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
