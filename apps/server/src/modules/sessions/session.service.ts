@@ -4,6 +4,7 @@ import { AttendanceRecordModel } from '../../models/AttendanceRecord.js';
 import { EnrollmentModel } from '../../models/Enrollment.js';
 import { UserModel } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { createNotification } from '../notifications/notification.service.js';
 import {
   canViewCourse,
   isCourseAdminOwner,
@@ -65,10 +66,14 @@ export async function listCourseSessions(
   return CourseSessionModel.find({ courseId }).sort({ dayNumber: 1 });
 }
 
-export async function getRoster(
-  courseId: string,
-  trainerUserId: string
-): Promise<{ studentId: string; email: string }[]> {
+export interface RosterEntry {
+  studentId: string;
+  email: string;
+  enrollmentId: string;
+  enrollmentStatus: string;
+}
+
+export async function getRoster(courseId: string, trainerUserId: string): Promise<RosterEntry[]> {
   const course = await requireCourse(courseId);
   if (!isCourseTrainer(course, trainerUserId)) {
     throw new ApiError(403, 'You do not have access to this course');
@@ -79,8 +84,14 @@ export async function getRoster(
     status: { $in: ['active', 'completed'] },
   });
   const students = await UserModel.find({ _id: { $in: enrollments.map((e) => e.studentId) } });
+  const emailByStudentId = new Map(students.map((s) => [s._id.toString(), s.email]));
 
-  return students.map((student) => ({ studentId: student._id.toString(), email: student.email }));
+  return enrollments.map((enrollment) => ({
+    studentId: enrollment.studentId.toString(),
+    email: emailByStudentId.get(enrollment.studentId.toString()) ?? '',
+    enrollmentId: enrollment._id.toString(),
+    enrollmentStatus: enrollment.status,
+  }));
 }
 
 async function getOwnedSession(sessionId: string, trainerUserId: string) {
@@ -116,6 +127,24 @@ export async function updateSession(
   session.status = input.status;
   session.cancelReason = input.status === 'cancelled' ? (input.cancelReason ?? null) : null;
   await session.save();
+
+  if (input.status === 'cancelled') {
+    const enrollments = await EnrollmentModel.find({
+      courseId: session.courseId,
+      status: { $in: ['active', 'completed'] },
+    });
+    await Promise.all(
+      enrollments.map((enrollment) =>
+        createNotification(
+          enrollment.studentId.toString(),
+          'session_cancelled',
+          `Day ${session.dayNumber} session cancelled`,
+          session.cancelReason ?? undefined
+        )
+      )
+    );
+  }
+
   return session;
 }
 

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AssessmentDto,
   AttendanceHistoryEntryDto,
+  BookingDto,
+  CertificateDto,
   CourseDeliveryMode,
   CourseDto,
   CourseListPageDto,
@@ -19,14 +21,13 @@ import {
   MOCK_EVENTS,
   MOCK_FEATURED_EVENT,
   MOCK_MENTOR,
-  MOCK_MENTOR_SESSIONS,
   MOCK_RECENT_ACTIVITY,
   MOCK_STATS,
   MOCK_STREAK,
   MOCK_UPCOMING_EVENTS,
   MOCK_WEEKLY_PROGRESS,
 } from './mockData';
-import type { CourseStatus, CourseSummary, ProblemStatement, Sprint } from './types';
+import type { CourseStatus, CourseSummary, MentorSession, ProblemStatement, Sprint } from './types';
 
 // Each hook below is a thin useQuery wrapper around static mock data — Phase
 // 3+ backend (Citadel, sessions, events) doesn't exist yet. Swapping to the
@@ -281,6 +282,16 @@ export function useMyCitadelTeam() {
   });
 }
 
+export function useMyCertificates() {
+  return useQuery({
+    queryKey: ['student', 'certificates'],
+    queryFn: () =>
+      apiRequest<{ certificates: CertificateDto[] }>('/api/certificates/mine').then(
+        (r) => r.certificates
+      ),
+  });
+}
+
 export function useSubmitMilestone() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -379,10 +390,63 @@ export function useExpressInterest() {
   });
 }
 
+const MENTOR_SESSIONS_KEY = ['student', 'mentor-sessions'];
+
+// No MentorProfile.name field exists (only userId/collegeId/expertise/bio) —
+// the mentor's email stands in for a display name until one does.
+function toMentorSession(booking: BookingDto): MentorSession {
+  const start = new Date(booking.scheduledAt);
+  const end = new Date(start.getTime() + booking.durationMinutes * 60_000);
+  const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+  return {
+    id: booking.id,
+    title: booking.title,
+    mentorName: booking.mentorEmail,
+    mentorTitle: 'Mentor',
+    mentorBio: '',
+    dateLabel: start.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+    dayLabel: start.getDate().toString(),
+    monthLabel: start.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+    timeLabel: `${fmtTime(start)} – ${fmtTime(end)}`,
+    mode: booking.mode,
+    status: booking.status === 'completed' ? 'Completed' : 'Upcoming',
+    agenda: booking.agenda,
+    note: booking.note ?? '',
+    meetingLink: booking.meetingLink ?? '#',
+  };
+}
+
 export function useMentorSessions() {
   return useQuery({
-    queryKey: ['student', 'mentor-sessions'],
-    queryFn: () => Promise.resolve(MOCK_MENTOR_SESSIONS),
+    queryKey: MENTOR_SESSIONS_KEY,
+    queryFn: () =>
+      apiRequest<{ bookings: BookingDto[] }>('/api/bookings/mine').then((r) =>
+        r.bookings.filter((b) => b.status !== 'cancelled').map(toMentorSession)
+      ),
+  });
+}
+
+export function useCreateBooking() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      counterpartEmail: string;
+      title: string;
+      scheduledAt: string;
+      durationMinutes?: number;
+      agenda?: string[];
+    }) =>
+      apiRequest<{ booking: BookingDto }>('/api/bookings', { method: 'POST', body: input }).then(
+        (r) => r.booking
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_SESSIONS_KEY });
+    },
   });
 }
 

@@ -20,6 +20,8 @@ export interface CourseSessionDto {
 export interface RosterEntryDto {
   studentId: string;
   email: string;
+  enrollmentId: string;
+  enrollmentStatus: 'pending_payment' | 'active' | 'completed' | 'refunded';
 }
 
 export interface AttendanceHistoryEntryDto {

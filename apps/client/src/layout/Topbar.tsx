@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Bell, LogOut, Menu, User as UserIcon } from 'lucide-react';
+import { LogOut, Menu, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { ROLE_LABELS } from '../auth/roleHome';
+import { NotificationBell } from '../components/NotificationBell';
 
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user, logout } = useAuth();
@@ -24,13 +25,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="button"
-          className="rounded-full p-2 text-slate-500 hover:bg-slate-100"
-          aria-label="Notifications"
-        >
-          <Bell size={20} />
-        </button>
+        <NotificationBell />
 
         <div className="relative">
           <button

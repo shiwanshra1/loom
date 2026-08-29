@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AssessmentDto,
   AssessmentType,
+  CertificateDto,
   CourseDto,
   CourseSessionDto,
   RosterEntryDto,
@@ -89,6 +90,20 @@ export function useCreateAssessment(courseId: string | undefined) {
       }).then((r) => r.assessment),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['course', 'assessments', courseId] });
+    },
+  });
+}
+
+export function useIssueCertificate(courseId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enrollmentId: string) =>
+      apiRequest<{ certificate: CertificateDto }>(`/api/enrollments/${enrollmentId}/certificate`, {
+        method: 'POST',
+        body: {},
+      }).then((r) => r.certificate),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['trainer', 'roster', courseId] });
     },
   });
 }

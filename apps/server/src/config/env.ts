@@ -28,4 +28,14 @@ export const env = {
     keyId: required('RAZORPAY_KEY_ID'),
     keySecret: required('RAZORPAY_KEY_SECRET'),
   },
+  s3: {
+    endpoint: required('S3_ENDPOINT'),
+    bucket: required('S3_BUCKET'),
+    accessKey: required('S3_ACCESS_KEY'),
+    secretKey: required('S3_SECRET_KEY'),
+  },
+  // Certificate verification links point here — the client origin, not the
+  // API's own origin, since /verify/:token is meant to be a public page a
+  // recruiter opens in a browser, not a raw API JSON response.
+  publicAppUrl: process.env.PUBLIC_APP_URL ?? process.env.CLIENT_ORIGIN ?? 'http://localhost:5173',
 };

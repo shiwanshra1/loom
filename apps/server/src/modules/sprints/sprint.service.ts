@@ -11,6 +11,8 @@ import { InvestorAccessGrantModel } from '../../models/InvestorAccessGrant.js';
 import { UserModel } from '../../models/User.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { enqueueInvestorUnlockCheck } from '../../jobs/citadelQueue.js';
+import { recordScoreEvent } from '../scoring/scoreEvent.service.js';
+import { createNotification } from '../notifications/notification.service.js';
 import type { AuthenticatedUser } from '../../middleware/authenticate.js';
 import type {
   AddFeedbackInput,
@@ -216,6 +218,30 @@ export async function addFeedback(
 
   sprint.status = 'reviewed';
   await sprint.save();
+
+  await Promise.all(
+    team.memberStudentIds.map(async (studentId) => {
+      const id = studentId.toString();
+      if (input.rating !== undefined) {
+        // Ratings average, rather than sum, into the Mentor category — see
+        // scoreWorker.ts's `average()` for why.
+        await recordScoreEvent(
+          id,
+          'mentor',
+          input.rating * 20,
+          `Mentor feedback (${input.rating}/5) on Sprint Cycle ${sprint.cycleNumber}`,
+          sprint._id.toString()
+        );
+      }
+      await createNotification(
+        id,
+        'milestone_reviewed',
+        `Sprint Cycle ${sprint.cycleNumber} reviewed`,
+        input.comment
+      );
+    })
+  );
+
   return sprint;
 }
 
@@ -242,6 +268,20 @@ export async function completeSprint(
     nextSprint.status = 'in_progress';
     await nextSprint.save();
   }
+
+  // One completed cycle is worth 1/3 of the Project category (3 cycles ==
+  // 100), for every member of the team.
+  await Promise.all(
+    team.memberStudentIds.map((studentId) =>
+      recordScoreEvent(
+        studentId.toString(),
+        'project',
+        100 / 3,
+        `Completed Sprint Cycle ${sprint.cycleNumber}`,
+        sprint._id.toString()
+      )
+    )
+  );
 
   // Async, off the request path — the worker re-checks all 3 cycles and
   // grants investor access exactly once, idempotently.

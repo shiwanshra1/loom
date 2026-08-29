@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { CalendarPlus, CheckCircle2, XCircle } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, GraduationCap, XCircle } from 'lucide-react';
 import type { AssessmentType, AttendanceStatus, CourseSessionDto } from '@forge-loom/shared-types';
 import {
   useCourseAssessments,
   useCourseSessions,
   useCreateAssessment,
+  useIssueCertificate,
   useMarkAttendance,
   useRoster,
   useUpdateSession,
@@ -46,6 +47,9 @@ export function CourseSessionsPage() {
   const updateSession = useUpdateSession(courseId);
   const markAttendance = useMarkAttendance(courseId);
   const createAssessment = useCreateAssessment(courseId);
+  const issueCertificate = useIssueCertificate(courseId);
+  const [certificateError, setCertificateError] = useState<string | null>(null);
+  const [issuingFor, setIssuingFor] = useState<string | null>(null);
 
   const [attendanceSession, setAttendanceSession] = useState<CourseSessionDto | null>(null);
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>({});
@@ -107,6 +111,18 @@ export function CourseSessionsPage() {
       setCancelSession(null);
     } catch {
       setActionError('Could not cancel this session. Please try again.');
+    }
+  }
+
+  async function handleIssueCertificate(enrollmentId: string) {
+    setCertificateError(null);
+    setIssuingFor(enrollmentId);
+    try {
+      await issueCertificate.mutateAsync(enrollmentId);
+    } catch {
+      setCertificateError('Could not issue this certificate. Please try again.');
+    } finally {
+      setIssuingFor(null);
     }
   }
 
@@ -186,6 +202,39 @@ export function CourseSessionsPage() {
           >
             Add
           </Button>
+        </div>
+      </Card>
+
+      <Card className="mb-6">
+        <h2 className="mb-3 flex items-center gap-2 font-semibold text-slate-900">
+          <GraduationCap size={16} /> Students
+        </h2>
+        {certificateError && <p className="mb-2 text-xs text-red-600">{certificateError}</p>}
+        <div className="flex flex-col divide-y divide-slate-100">
+          {roster?.length === 0 && (
+            <p className="py-2 text-sm text-slate-400">No enrolled students yet.</p>
+          )}
+          {roster?.map((entry) => (
+            <div
+              key={entry.studentId}
+              className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0"
+            >
+              <span className="text-sm text-slate-700">{entry.email}</span>
+              {entry.enrollmentStatus === 'completed' ? (
+                <Badge tone="green">Certificate Issued</Badge>
+              ) : (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleIssueCertificate(entry.enrollmentId)}
+                  disabled={issueCertificate.isPending && issuingFor === entry.enrollmentId}
+                >
+                  {issueCertificate.isPending && issuingFor === entry.enrollmentId
+                    ? 'Issuing…'
+                    : 'Issue Certificate'}
+                </Button>
+              )}
+            </div>
+          ))}
         </div>
       </Card>
 

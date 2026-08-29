@@ -11,3 +11,6 @@ export * from './cohort.js';
 export * from './team.js';
 export * from './problemStatement.js';
 export * from './sprint.js';
+export * from './certificate.js';
+export * from './booking.js';
+export * from './notification.js';

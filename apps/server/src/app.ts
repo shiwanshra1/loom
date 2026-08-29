@@ -16,6 +16,9 @@ import { cohortRouter } from './modules/cohorts/cohort.routes.js';
 import { teamRouter } from './modules/teams/team.routes.js';
 import { problemStatementRouter } from './modules/problemStatements/problemStatement.routes.js';
 import { sprintRouter } from './modules/sprints/sprint.routes.js';
+import { certificateRouter } from './modules/certificates/certificate.routes.js';
+import { bookingRouter } from './modules/bookings/booking.routes.js';
+import { notificationRouter } from './modules/notifications/notification.routes.js';
 import { notFoundHandler, errorHandler } from './middleware/errorHandler.js';
 
 export function createApp(): Express {
@@ -47,6 +50,9 @@ export function createApp(): Express {
   app.use('/api/teams', teamRouter);
   app.use('/api/problem-statements', problemStatementRouter);
   app.use('/api/sprints', sprintRouter);
+  app.use('/api/certificates', certificateRouter);
+  app.use('/api/bookings', bookingRouter);
+  app.use('/api/notifications', notificationRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

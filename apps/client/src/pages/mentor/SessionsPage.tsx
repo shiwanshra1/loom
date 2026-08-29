@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { CalendarPlus, CheckCircle2, Users, Video } from 'lucide-react';
-import { useMentorSessions, useMentorTeams } from '../../features/mentor/hooks';
-import type { MentorSession, MentorSessionStatus } from '../../features/mentor/types';
+import { useMentorSessions, useScheduleSession } from '../../features/mentor/hooks';
+import type { MentorSessionStatus } from '../../features/mentor/types';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Tabs } from '../../components/ui/Tabs';
@@ -16,51 +16,43 @@ const TABS: { value: MentorSessionStatus; label: string }[] = [
 
 export function SessionsPage() {
   const { data: sessions, isLoading: sessionsLoading } = useMentorSessions();
-  const { data: teams, isLoading: teamsLoading } = useMentorTeams();
+  const scheduleSession = useScheduleSession();
   const [tab, setTab] = useState<MentorSessionStatus>('Upcoming');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [extraSessions, setExtraSessions] = useState<MentorSession[]>([]);
   const [title, setTitle] = useState('');
-  const [team, setTeam] = useState('');
+  const [studentEmail, setStudentEmail] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  const allSessions = useMemo(
-    () => [...(sessions ?? []), ...extraSessions],
-    [sessions, extraSessions]
-  );
-  const filtered = useMemo(() => allSessions.filter((s) => s.status === tab), [allSessions, tab]);
-  const selected = allSessions.find((s) => s.id === selectedId) ?? filtered[0];
+  const filtered = useMemo(() => (sessions ?? []).filter((s) => s.status === tab), [sessions, tab]);
+  const selected = sessions?.find((s) => s.id === selectedId) ?? filtered[0];
 
-  if (sessionsLoading || teamsLoading) {
+  if (sessionsLoading) {
     return <PageLoading />;
   }
 
-  function handleSchedule(event: FormEvent) {
+  async function handleSchedule(event: FormEvent) {
     event.preventDefault();
-    if (!title || !team || !date || !time) return;
+    if (!title || !studentEmail || !date || !time) return;
 
-    const newSession: MentorSession = {
-      id: `mentor-session-new-${Date.now()}`,
-      title,
-      team,
-      dayLabel: date.slice(8, 10) || '--',
-      monthLabel: date ? date.slice(5, 7) : '--',
-      dateLabel: date,
-      timeLabel: time,
-      mode: 'Google Meet',
-      status: 'Upcoming',
-      agenda: [],
-    };
-
-    setExtraSessions((prev) => [newSession, ...prev]);
-    setTitle('');
-    setTeam('');
-    setDate('');
-    setTime('');
-    setShowForm(false);
-    setTab('Upcoming');
+    setScheduleError(null);
+    try {
+      await scheduleSession.mutateAsync({
+        studentEmail,
+        title,
+        scheduledAt: new Date(`${date}T${time}`).toISOString(),
+      });
+      setTitle('');
+      setStudentEmail('');
+      setDate('');
+      setTime('');
+      setShowForm(false);
+      setTab('Upcoming');
+    } catch {
+      setScheduleError('Could not schedule this session. Check the student email and try again.');
+    }
   }
 
   return (
@@ -97,26 +89,18 @@ export function SessionsPage() {
             <div>
               <label
                 className="mb-1 block text-sm font-medium text-slate-700"
-                htmlFor="session-team"
+                htmlFor="session-student"
               >
-                Team
+                Student email
               </label>
-              <select
-                id="session-team"
+              <Input
+                id="session-student"
+                type="email"
                 required
-                value={team}
-                onChange={(e) => setTeam(e.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="" disabled>
-                  Select a team
-                </option>
-                {teams?.map((t) => (
-                  <option key={t.id} value={t.name}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
+                value={studentEmail}
+                onChange={(e) => setStudentEmail(e.target.value)}
+                placeholder="student1@forgeloom.dev"
+              />
             </div>
             <div>
               <label
@@ -148,9 +132,10 @@ export function SessionsPage() {
                 onChange={(e) => setTime(e.target.value)}
               />
             </div>
+            {scheduleError && <p className="text-sm text-red-600 sm:col-span-2">{scheduleError}</p>}
             <div className="flex gap-3 sm:col-span-2">
-              <Button type="submit" className="flex-1">
-                Confirm Session
+              <Button type="submit" className="flex-1" disabled={scheduleSession.isPending}>
+                {scheduleSession.isPending ? 'Scheduling…' : 'Confirm Session'}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setShowForm(false)}>
                 Cancel

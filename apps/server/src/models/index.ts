@@ -25,3 +25,7 @@ export * from './MilestoneSubmission.js';
 export * from './InvestorAccessGrant.js';
 export * from './InterestExpression.js';
 export * from './Bookmark.js';
+export * from './ScoreEvent.js';
+export * from './Certificate.js';
+export * from './Booking.js';
+export * from './Notification.js';

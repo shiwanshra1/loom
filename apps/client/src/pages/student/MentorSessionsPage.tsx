@@ -1,12 +1,23 @@
 import { useMemo, useState } from 'react';
-import { Calendar, Clock, Linkedin, Mail, Video, CheckCircle2, Lightbulb } from 'lucide-react';
-import { useMentorSessions } from '../../features/student/hooks';
+import {
+  Calendar,
+  CalendarPlus,
+  Clock,
+  Linkedin,
+  Mail,
+  Video,
+  CheckCircle2,
+  Lightbulb,
+} from 'lucide-react';
+import { useCreateBooking, useMentorSessions } from '../../features/student/hooks';
 import type { MentorSessionTab } from '../../features/student/types';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Tabs } from '../../components/ui/Tabs';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { PageLoading } from '../../components/ui/PageLoading';
+import { Modal } from '../../components/ui/Modal';
 
 const TABS: { value: MentorSessionTab; label: string }[] = [
   { value: 'upcoming', label: 'Upcoming Sessions' },
@@ -15,8 +26,15 @@ const TABS: { value: MentorSessionTab; label: string }[] = [
 
 export function MentorSessionsPage() {
   const { data, isLoading } = useMentorSessions();
+  const createBooking = useCreateBooking();
   const [tab, setTab] = useState<MentorSessionTab>('upcoming');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [bookOpen, setBookOpen] = useState(false);
+  const [mentorEmail, setMentorEmail] = useState('');
+  const [title, setTitle] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
+  const [bookError, setBookError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -31,10 +49,37 @@ export function MentorSessionsPage() {
     return <PageLoading />;
   }
 
+  async function handleBookSession() {
+    if (!mentorEmail || !title || !date || !time) return;
+    setBookError(null);
+    try {
+      await createBooking.mutateAsync({
+        counterpartEmail: mentorEmail,
+        title,
+        scheduledAt: new Date(`${date}T${time}`).toISOString(),
+      });
+      setBookOpen(false);
+      setMentorEmail('');
+      setTitle('');
+      setDate('');
+      setTime('');
+      setTab('upcoming');
+    } catch {
+      setBookError('Could not book this session. Check the mentor email and try again.');
+    }
+  }
+
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Mentor Sessions</h1>
-      <p className="mb-6 text-sm text-slate-500">Connect, learn and grow with your mentors.</p>
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Mentor Sessions</h1>
+          <p className="text-sm text-slate-500">Connect, learn and grow with your mentors.</p>
+        </div>
+        <Button onClick={() => setBookOpen(true)}>
+          <CalendarPlus size={16} /> Book a Session
+        </Button>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="p-0">
@@ -160,6 +205,51 @@ export function MentorSessionsPage() {
           </Card>
         )}
       </div>
+
+      <Modal open={bookOpen} onClose={() => setBookOpen(false)}>
+        <h2 className="mb-1 text-lg font-semibold text-slate-900">Book a Mentor Session</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Enter your mentor&apos;s email — they&apos;ll be notified once you confirm.
+        </p>
+        <label className="mb-1 block text-sm font-medium text-slate-700">Mentor email</label>
+        <Input
+          type="email"
+          className="mb-3"
+          value={mentorEmail}
+          onChange={(e) => setMentorEmail(e.target.value)}
+          placeholder="mentor1@forgeloom.dev"
+        />
+        <label className="mb-1 block text-sm font-medium text-slate-700">Title</label>
+        <Input
+          className="mb-3"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Project Review & Guidance"
+        />
+        <div className="mb-4 grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Date</label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Time</label>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </div>
+        </div>
+        {bookError && <p className="mb-3 text-sm text-red-600">{bookError}</p>}
+        <div className="flex gap-3">
+          <Button variant="secondary" className="flex-1" onClick={() => setBookOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            className="flex-1"
+            onClick={handleBookSession}
+            disabled={createBooking.isPending || !mentorEmail || !title || !date || !time}
+          >
+            {createBooking.isPending ? 'Booking…' : 'Confirm Booking'}
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

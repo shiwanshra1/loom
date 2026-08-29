@@ -20,6 +20,7 @@ import {
   CalendarClock,
   Search,
   GraduationCap,
+  Award,
   type LucideIcon,
 } from 'lucide-react';
 import { Role } from '@forge-loom/shared-types';
@@ -42,6 +43,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: 'Tracker', path: '/student/tracker', icon: TrendingUp },
     { label: 'Citadel', path: '/student/citadel', icon: Castle },
     { label: 'Mentor', path: '/student/mentor', icon: MentorIcon },
+    { label: 'Certifications', path: '/student/certifications', icon: Award },
     { label: 'Events', path: '/student/events', icon: PartyPopper },
   ],
   [Role.Mentor]: [

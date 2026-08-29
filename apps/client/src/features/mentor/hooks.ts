@@ -1,19 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TeamDto, TeamSprintsDto } from '@forge-loom/shared-types';
+import type {
+  BookingDto,
+  NotificationDto,
+  TeamDto,
+  TeamSprintsDto,
+} from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
 import {
   MOCK_ASSIGNED_STUDENTS,
   MOCK_AT_RISK_STUDENTS,
   MOCK_MENTEE_VIEW_STATS,
-  MOCK_MENTOR_SESSIONS,
-  MOCK_NOTIFICATIONS,
   MOCK_PROGRESS_SNAPSHOT,
   MOCK_STUDENT_PROFILES,
   MOCK_TEAM_VIEW_STATS,
-  MOCK_TODAY_SESSIONS,
-  MOCK_UPCOMING_SESSION_HIGHLIGHT,
 } from './mockData';
-import type { TeamDetail, TeamSummary } from './types';
+import type {
+  MentorSession,
+  TeamDetail,
+  TeamSummary,
+  TodaySession,
+  UpcomingSessionHighlight,
+} from './types';
 
 // Thin useQuery wrappers around static mock data — same pattern as the
 // Student feature. Swapping to the real API later means changing each
@@ -63,10 +70,64 @@ export function useMentorMenteeStats() {
   });
 }
 
+const MENTOR_BOOKINGS_KEY = ['mentor', 'bookings'];
+
+// No team-to-session link exists on a booking (it's a plain 1:1 with a
+// student) — the requester's email stands in for "team" the same way an
+// email stands in for a display name elsewhere, disclosed.
+async function fetchMentorBookings(): Promise<BookingDto[]> {
+  const { bookings } = await apiRequest<{ bookings: BookingDto[] }>('/api/bookings/mine');
+  return bookings.filter((b) => b.status !== 'cancelled');
+}
+
+function toMentorSideSession(booking: BookingDto): MentorSession {
+  const start = new Date(booking.scheduledAt);
+  return {
+    id: booking.id,
+    title: booking.title,
+    team: booking.requesterEmail,
+    dayLabel: start.getDate().toString().padStart(2, '0'),
+    monthLabel: start.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
+    dateLabel: start.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }),
+    timeLabel: start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+    mode: booking.mode,
+    status: booking.status === 'completed' ? 'Completed' : 'Upcoming',
+    agenda: booking.agenda,
+  };
+}
+
+function startingInLabel(scheduledAt: string): string {
+  const diffMs = new Date(scheduledAt).getTime() - Date.now();
+  if (diffMs <= 0) return 'Now';
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return hours > 0 ? `In ${hours}h ${minutes}m` : `In ${minutes}m`;
+}
+
 export function useTodaySessions() {
   return useQuery({
-    queryKey: ['mentor', 'today-sessions'],
-    queryFn: () => Promise.resolve(MOCK_TODAY_SESSIONS),
+    queryKey: MENTOR_BOOKINGS_KEY,
+    queryFn: fetchMentorBookings,
+    select: (bookings): TodaySession[] => {
+      const today = new Date().toDateString();
+      return bookings
+        .filter((b) => b.status === 'upcoming' && new Date(b.scheduledAt).toDateString() === today)
+        .map((b) => ({
+          id: b.id,
+          title: b.title,
+          team: b.requesterEmail,
+          timeLabel: new Date(b.scheduledAt).toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          }),
+          mode: b.mode,
+          startingInLabel: startingInLabel(b.scheduledAt),
+        }));
+    },
   });
 }
 
@@ -99,17 +160,50 @@ export function useProgressSnapshot() {
   });
 }
 
+function formatNotificationTimeLabel(iso: string): string {
+  const date = new Date(iso);
+  const isToday = date.toDateString() === new Date().toDateString();
+  const time = date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return isToday ? `Today, ${time}` : `${date.toLocaleDateString()}, ${time}`;
+}
+
 export function useMentorNotifications() {
   return useQuery({
-    queryKey: ['mentor', 'notifications'],
-    queryFn: () => Promise.resolve(MOCK_NOTIFICATIONS),
+    queryKey: ['notifications', 'mine'],
+    queryFn: () =>
+      apiRequest<{ notifications: NotificationDto[] }>('/api/notifications/mine').then((r) =>
+        r.notifications.map((n) => ({
+          id: n.id,
+          title: n.title,
+          timeLabel: formatNotificationTimeLabel(n.createdAt),
+        }))
+      ),
   });
 }
 
 export function useUpcomingSessionHighlight() {
   return useQuery({
-    queryKey: ['mentor', 'upcoming-session-highlight'],
-    queryFn: () => Promise.resolve(MOCK_UPCOMING_SESSION_HIGHLIGHT),
+    queryKey: MENTOR_BOOKINGS_KEY,
+    queryFn: fetchMentorBookings,
+    select: (bookings): UpcomingSessionHighlight | null => {
+      const next = bookings
+        .filter((b) => b.status === 'upcoming' && new Date(b.scheduledAt).getTime() > Date.now())
+        .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+      if (!next) return null;
+      const start = new Date(next.scheduledAt);
+      return {
+        title: next.title,
+        team: next.requesterEmail,
+        dateLabel: start.toLocaleDateString('en-US', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+        }),
+        timeLabel: start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }),
+        mode: next.mode,
+        startingInLabel: startingInLabel(next.scheduledAt),
+      };
+    },
   });
 }
 
@@ -196,7 +290,26 @@ export function useCompleteSprint() {
 
 export function useMentorSessions() {
   return useQuery({
-    queryKey: ['mentor', 'sessions'],
-    queryFn: () => Promise.resolve(MOCK_MENTOR_SESSIONS),
+    queryKey: MENTOR_BOOKINGS_KEY,
+    queryFn: fetchMentorBookings,
+    select: (bookings) => bookings.map(toMentorSideSession),
+  });
+}
+
+export function useScheduleSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { studentEmail: string; title: string; scheduledAt: string }) =>
+      apiRequest<{ booking: BookingDto }>('/api/bookings', {
+        method: 'POST',
+        body: {
+          counterpartEmail: input.studentEmail,
+          title: input.title,
+          scheduledAt: input.scheduledAt,
+        },
+      }).then((r) => r.booking),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: MENTOR_BOOKINGS_KEY });
+    },
   });
 }

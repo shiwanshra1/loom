@@ -4,6 +4,7 @@ import { SprintModel } from '../models/Sprint.js';
 import { TeamModel } from '../models/Team.js';
 import { ProblemStatementModel } from '../models/ProblemStatement.js';
 import { InvestorAccessGrantModel } from '../models/InvestorAccessGrant.js';
+import { createNotification } from '../modules/notifications/notification.service.js';
 import {
   CITADEL_QUEUE_NAME,
   CHECK_INVESTOR_UNLOCK_JOB,
@@ -12,8 +13,6 @@ import {
 
 // The Citadel state machine's one automated rule: once a team's 3rd sprint
 // cycle reaches `complete`, investor access is granted with no manual step.
-// Notifications are a console log for now — a real `notifications` collection
-// is explicitly Phase 8's job; this is a disclosed stand-in until then.
 async function checkInvestorUnlock(teamId: string): Promise<void> {
   const alreadyGranted = await InvestorAccessGrantModel.exists({ teamId });
   if (alreadyGranted) {
@@ -37,8 +36,21 @@ async function checkInvestorUnlock(teamId: string): Promise<void> {
     await ProblemStatementModel.updateOne({ _id: team.problemStatementId }, { status: 'closed' });
   }
 
-  console.log(
-    `[citadel] Investor access granted for team ${teamId} — team, mentor, and industry/investor accounts would be notified here.`
+  // Real notifications now that Phase 8 built the collection — this used to
+  // be a console.log stand-in, disclosed as such in Phase 7.
+  const recipientIds = [
+    ...(team?.memberStudentIds.map((id) => id.toString()) ?? []),
+    ...(team?.mentorId ? [team.mentorId.toString()] : []),
+  ];
+  await Promise.all(
+    recipientIds.map((userId) =>
+      createNotification(
+        userId,
+        'investor_access_granted',
+        `${team?.name ?? 'Your team'} unlocked investor access!`,
+        'All 3 sprint cycles are complete — investors can now view your team.'
+      )
+    )
   );
 }
 
