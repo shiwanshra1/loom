@@ -4,10 +4,10 @@ import type { ProblemStatementRow } from './problemStatement.service.js';
 export function toProblemStatementDto(row: ProblemStatementRow): ProblemStatementDto {
   const { problemStatement } = row;
   return {
-    id: problemStatement._id.toString(),
+    id: problemStatement.id,
     title: problemStatement.title,
     description: problemStatement.description,
-    overview: problemStatement.overview,
+    overview: problemStatement.overview ?? undefined,
     source: problemStatement.source,
     domain: problemStatement.domain,
     tags: problemStatement.tags,
@@ -16,7 +16,7 @@ export function toProblemStatementDto(row: ProblemStatementRow): ProblemStatemen
     difficulty: problemStatement.difficulty,
     status: problemStatement.status,
     featured: problemStatement.featured,
-    deliverables: problemStatement.deliverables,
+    deliverables: problemStatement.deliverables.map((d) => ({ title: d.title, done: d.done })),
     bookmarked: row.bookmarked,
     isMine: row.isMine,
     interested: row.interested,

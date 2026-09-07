@@ -1,21 +1,23 @@
 import type { TeamDto } from '@forge-loom/shared-types';
-import type { TeamDocument } from '../../models/Team.js';
-import { StudentProfileModel } from '../../models/StudentProfile.js';
+import { prisma } from '../../config/prisma.js';
+import type { TeamWithMembers } from './team.service.js';
 
-export async function toTeamDto(team: TeamDocument): Promise<TeamDto> {
-  const profiles = await StudentProfileModel.find({ userId: { $in: team.memberStudentIds } });
-  const nameByUserId = new Map(profiles.map((p) => [p.userId.toString(), p.name]));
+export async function toTeamDto(team: TeamWithMembers): Promise<TeamDto> {
+  const profiles = await prisma.studentProfile.findMany({
+    where: { userId: { in: team.members.map((m) => m.studentUserId) } },
+  });
+  const nameByUserId = new Map(profiles.map((p) => [p.userId, p.name]));
 
   return {
-    id: team._id.toString(),
+    id: team.id,
     name: team.name,
-    collegeId: team.collegeId.toString(),
-    members: team.memberStudentIds.map((id) => ({
-      studentId: id.toString(),
-      name: nameByUserId.get(id.toString()) ?? 'Unknown student',
+    collegeId: team.collegeId,
+    members: team.members.map((m) => ({
+      studentId: m.studentUserId,
+      name: nameByUserId.get(m.studentUserId) ?? 'Unknown student',
     })),
-    mentorId: team.mentorId ? team.mentorId.toString() : null,
-    trainerId: team.trainerId ? team.trainerId.toString() : null,
-    problemStatementId: team.problemStatementId ? team.problemStatementId.toString() : null,
+    mentorId: team.mentorId,
+    trainerId: team.trainerId,
+    problemStatementId: team.problemStatementId,
   };
 }

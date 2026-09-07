@@ -33,7 +33,7 @@ export async function create(req: Request, res: Response): Promise<void> {
 export async function list(req: Request, res: Response): Promise<void> {
   const user = requireUser(req);
 
-  let filter: Record<string, unknown>;
+  let filter: teamService.TeamListFilter;
   if (user.role === Role.ForgeAdmin) {
     filter = typeof req.query.collegeId === 'string' ? { collegeId: req.query.collegeId } : {};
   } else if (user.role === Role.CollegeAdmin) {
@@ -46,7 +46,7 @@ export async function list(req: Request, res: Response): Promise<void> {
   } else if (user.role === Role.Mentor) {
     filter = { mentorId: user.userId };
   } else if (user.role === Role.Student) {
-    filter = { memberStudentIds: user.userId };
+    filter = { memberStudentId: user.userId };
   } else {
     throw new ApiError(403, 'You do not have access to this resource');
   }

@@ -29,7 +29,7 @@ export async function getMySprints(req: Request, res: Response): Promise<void> {
   if (!team) {
     throw new ApiError(404, "You aren't on a Citadel team yet");
   }
-  const view = await sprintService.getTeamSprintsView(team._id.toString(), user);
+  const view = await sprintService.getTeamSprintsView(team.id, user);
   res.json(toTeamSprintsDto(view));
 }
 

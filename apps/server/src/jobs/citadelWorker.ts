@@ -1,9 +1,6 @@
 import { Worker, type Job } from 'bullmq';
 import { redis } from '../config/redis.js';
-import { SprintModel } from '../models/Sprint.js';
-import { TeamModel } from '../models/Team.js';
-import { ProblemStatementModel } from '../models/ProblemStatement.js';
-import { InvestorAccessGrantModel } from '../models/InvestorAccessGrant.js';
+import { prisma } from '../config/prisma.js';
 import { createNotification } from '../modules/notifications/notification.service.js';
 import {
   CITADEL_QUEUE_NAME,
@@ -14,33 +11,38 @@ import {
 // The Citadel state machine's one automated rule: once a team's 3rd sprint
 // cycle reaches `complete`, investor access is granted with no manual step.
 export async function checkInvestorUnlock(teamId: string): Promise<void> {
-  const alreadyGranted = await InvestorAccessGrantModel.exists({ teamId });
+  const alreadyGranted = await prisma.investorAccessGrant.findUnique({ where: { teamId } });
   if (alreadyGranted) {
     return;
   }
 
-  const sprints = await SprintModel.find({ teamId });
+  const sprints = await prisma.sprint.findMany({ where: { teamId } });
   const allThreeComplete =
     sprints.length >= 3 && sprints.every((sprint) => sprint.status === 'complete');
   if (!allThreeComplete) {
     return;
   }
 
-  await InvestorAccessGrantModel.create({
-    teamId,
-    reason: '3 sprint cycles complete',
+  await prisma.investorAccessGrant.create({
+    data: { teamId, reason: '3 sprint cycles complete' },
   });
 
-  const team = await TeamModel.findById(teamId);
+  const team = await prisma.team.findUnique({ where: { id: teamId }, include: { members: true } });
   if (team?.problemStatementId) {
-    await ProblemStatementModel.updateOne({ _id: team.problemStatementId }, { status: 'closed' });
+    await prisma.problemStatement.update({
+      where: { id: team.problemStatementId },
+      data: { status: 'closed' },
+    });
   }
 
-  // Real notifications now that Phase 8 built the collection — this used to
-  // be a console.log stand-in, disclosed as such in Phase 7.
+  // Real notifications now that Phase 8 (of milestone-1.md) built the
+  // collection — this used to be a console.log stand-in, disclosed as such
+  // in Phase 7. `createNotification` silently no-ops for a Postgres-native
+  // recipient id since Notification itself isn't on Prisma until Phase 5 of
+  // the Postgres migration (docs/prisma-migration-tickets.md).
   const recipientIds = [
-    ...(team?.memberStudentIds.map((id) => id.toString()) ?? []),
-    ...(team?.mentorId ? [team.mentorId.toString()] : []),
+    ...(team?.members.map((m) => m.studentUserId) ?? []),
+    ...(team?.mentorId ? [team.mentorId] : []),
   ];
   await Promise.all(
     recipientIds.map((userId) =>

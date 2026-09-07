@@ -1,18 +1,11 @@
-import { Types } from 'mongoose';
 import { Role } from '@forge-loom/shared-types';
-import { SprintModel, type SprintDocument } from '../../models/Sprint.js';
-import { TeamModel, type TeamDocument } from '../../models/Team.js';
-import {
-  MilestoneSubmissionModel,
-  type MilestoneSubmissionDocument,
-} from '../../models/MilestoneSubmission.js';
-import { ProblemStatementModel } from '../../models/ProblemStatement.js';
-import { InvestorAccessGrantModel } from '../../models/InvestorAccessGrant.js';
-import { UserModel } from '../../models/User.js';
+import type { MilestoneFeedback, MilestoneSubmission, Sprint, SprintTask } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { enqueueInvestorUnlockCheck } from '../../jobs/citadelQueue.js';
 import { recordScoreEvent } from '../scoring/scoreEvent.service.js';
 import { createNotification } from '../notifications/notification.service.js';
+import type { TeamWithMembers } from '../teams/team.service.js';
 import type { AuthenticatedUser } from '../../middleware/authenticate.js';
 import type {
   AddFeedbackInput,
@@ -20,12 +13,20 @@ import type {
   SubmitMilestoneInput,
 } from './sprint.validation.js';
 
+export type SprintWithTasks = Sprint & { tasks: SprintTask[] };
+export type MilestoneSubmissionWithFeedback = MilestoneSubmission & {
+  mentorFeedback: MilestoneFeedback[];
+};
+
+const TASKS_INCLUDE = { tasks: { orderBy: { order: 'asc' as const } } };
+const MEMBERS_INCLUDE = { members: true };
+
 // Doc didn't specify a cycle length — 2 weeks per cycle is a disclosed,
 // reasonable default for materializing start/end dates.
 const SPRINT_DURATION_WEEKS = 2;
 
-export async function ensureSprintsForTeam(team: TeamDocument): Promise<void> {
-  const existing = await SprintModel.countDocuments({ teamId: team._id });
+export async function ensureSprintsForTeam(team: { id: string }): Promise<void> {
+  const existing = await prisma.sprint.count({ where: { teamId: team.id } });
   if (existing > 0) {
     return;
   }
@@ -37,34 +38,33 @@ export async function ensureSprintsForTeam(team: TeamDocument): Promise<void> {
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + SPRINT_DURATION_WEEKS * 7);
     return {
-      teamId: team._id,
+      teamId: team.id,
       cycleNumber,
       status: cycleNumber === 1 ? ('in_progress' as const) : ('not_started' as const),
       startDate,
       endDate,
-      tasks: [],
       progressPercent: 0,
     };
   });
 
-  await SprintModel.insertMany(cycles);
+  await prisma.sprint.createMany({ data: cycles });
 }
 
-function isTeamMember(team: TeamDocument, userId: string): boolean {
-  return team.memberStudentIds.some((id) => id.toString() === userId);
+function isTeamMember(team: TeamWithMembers, userId: string): boolean {
+  return team.members.some((m) => m.studentUserId === userId);
 }
 
-function isTeamMentor(team: TeamDocument, userId: string): boolean {
-  return Boolean(team.mentorId) && team.mentorId?.toString() === userId;
+function isTeamMentor(team: TeamWithMembers, userId: string): boolean {
+  return team.mentorId === userId;
 }
 
-function isTeamTrainer(team: TeamDocument, userId: string): boolean {
-  return Boolean(team.trainerId) && team.trainerId?.toString() === userId;
+function isTeamTrainer(team: TeamWithMembers, userId: string): boolean {
+  return team.trainerId === userId;
 }
 
-async function canViewTeam(team: TeamDocument, viewer: AuthenticatedUser): Promise<boolean> {
+async function canViewTeam(team: TeamWithMembers, viewer: AuthenticatedUser): Promise<boolean> {
   if (viewer.role === Role.ForgeAdmin) return true;
-  if (viewer.role === Role.CollegeAdmin) return team.collegeId.toString() === viewer.collegeId;
+  if (viewer.role === Role.CollegeAdmin) return team.collegeId === viewer.collegeId;
   return (
     isTeamMember(team, viewer.userId) ||
     isTeamMentor(team, viewer.userId) ||
@@ -72,22 +72,25 @@ async function canViewTeam(team: TeamDocument, viewer: AuthenticatedUser): Promi
   );
 }
 
-async function requireTeam(teamId: string): Promise<TeamDocument> {
-  const team = await TeamModel.findById(teamId);
+async function requireTeam(teamId: string): Promise<TeamWithMembers> {
+  const team = await prisma.team.findUnique({ where: { id: teamId }, include: MEMBERS_INCLUDE });
   if (!team) {
     throw new ApiError(404, 'Team not found');
   }
   return team;
 }
 
-export async function getMyTeam(studentUserId: string): Promise<TeamDocument | null> {
-  return TeamModel.findOne({ memberStudentIds: studentUserId });
+export async function getMyTeam(studentUserId: string): Promise<TeamWithMembers | null> {
+  return prisma.team.findFirst({
+    where: { members: { some: { studentUserId } } },
+    include: MEMBERS_INCLUDE,
+  });
 }
 
 export interface TeamSprintsView {
-  team: TeamDocument;
-  sprints: SprintDocument[];
-  submissionsBySprintId: Map<string, MilestoneSubmissionDocument[]>;
+  team: TeamWithMembers;
+  sprints: SprintWithTasks[];
+  submissionsBySprintId: Map<string, MilestoneSubmissionWithFeedback[]>;
   problemStatementTitle: string | null;
   trainerEmail: string | null;
   mentorEmail: string | null;
@@ -103,21 +106,30 @@ export async function getTeamSprintsView(
     throw new ApiError(403, 'You do not have access to this team');
   }
 
-  const sprints = await SprintModel.find({ teamId }).sort({ cycleNumber: 1 });
-  const submissions = await MilestoneSubmissionModel.find({ teamId }).sort({ createdAt: -1 });
-  const submissionsBySprintId = new Map<string, MilestoneSubmissionDocument[]>();
+  const sprints = await prisma.sprint.findMany({
+    where: { teamId },
+    orderBy: { cycleNumber: 'asc' },
+    include: TASKS_INCLUDE,
+  });
+  const submissions = await prisma.milestoneSubmission.findMany({
+    where: { teamId },
+    orderBy: { createdAt: 'desc' },
+    include: { mentorFeedback: true },
+  });
+  const submissionsBySprintId = new Map<string, MilestoneSubmissionWithFeedback[]>();
   for (const submission of submissions) {
-    const key = submission.sprintId.toString();
-    const bucket = submissionsBySprintId.get(key) ?? [];
+    const bucket = submissionsBySprintId.get(submission.sprintId) ?? [];
     bucket.push(submission);
-    submissionsBySprintId.set(key, bucket);
+    submissionsBySprintId.set(submission.sprintId, bucket);
   }
 
   const [problemStatement, trainer, mentor, investorGrant] = await Promise.all([
-    team.problemStatementId ? ProblemStatementModel.findById(team.problemStatementId) : null,
-    team.trainerId ? UserModel.findById(team.trainerId) : null,
-    team.mentorId ? UserModel.findById(team.mentorId) : null,
-    InvestorAccessGrantModel.exists({ teamId }),
+    team.problemStatementId
+      ? prisma.problemStatement.findUnique({ where: { id: team.problemStatementId } })
+      : null,
+    team.trainerId ? prisma.user.findUnique({ where: { id: team.trainerId } }) : null,
+    team.mentorId ? prisma.user.findUnique({ where: { id: team.mentorId } }) : null,
+    prisma.investorAccessGrant.findUnique({ where: { teamId } }),
   ]);
 
   return {
@@ -132,11 +144,11 @@ export async function getTeamSprintsView(
 }
 
 async function getOwnedSprint(sprintId: string) {
-  const sprint = await SprintModel.findById(sprintId);
+  const sprint = await prisma.sprint.findUnique({ where: { id: sprintId }, include: TASKS_INCLUDE });
   if (!sprint) {
     throw new ApiError(404, 'Sprint not found');
   }
-  const team = await requireTeam(sprint.teamId.toString());
+  const team = await requireTeam(sprint.teamId);
   return { sprint, team };
 }
 
@@ -144,30 +156,42 @@ export async function replaceTasks(
   sprintId: string,
   viewer: AuthenticatedUser,
   input: ReplaceTasksInput
-): Promise<SprintDocument> {
-  const { sprint, team } = await getOwnedSprint(sprintId);
+): Promise<SprintWithTasks> {
+  const { team } = await getOwnedSprint(sprintId);
   if (!isTeamMember(team, viewer.userId)) {
     throw new ApiError(403, 'Only team members can edit this sprint');
   }
 
-  sprint.tasks = input.tasks.map((task) => ({
-    title: task.title,
-    status: task.status,
-    dueDate: new Date(task.dueDate),
-  }));
-  const total = sprint.tasks.length;
-  const completed = sprint.tasks.filter((task) => task.status === 'completed').length;
-  sprint.progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
+  const total = input.tasks.length;
+  const completed = input.tasks.filter((task) => task.status === 'completed').length;
+  const progressPercent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
-  await sprint.save();
-  return sprint;
+  await prisma.$transaction([
+    prisma.sprintTask.deleteMany({ where: { sprintId } }),
+    prisma.sprint.update({
+      where: { id: sprintId },
+      data: {
+        progressPercent,
+        tasks: {
+          create: input.tasks.map((task, order) => ({
+            title: task.title,
+            status: task.status,
+            dueDate: new Date(task.dueDate),
+            order,
+          })),
+        },
+      },
+    }),
+  ]);
+
+  return prisma.sprint.findUniqueOrThrow({ where: { id: sprintId }, include: TASKS_INCLUDE });
 }
 
 export async function submitMilestone(
   sprintId: string,
   viewer: AuthenticatedUser,
   input: SubmitMilestoneInput
-): Promise<MilestoneSubmissionDocument> {
+): Promise<MilestoneSubmissionWithFeedback> {
   const { sprint, team } = await getOwnedSprint(sprintId);
   if (!isTeamMember(team, viewer.userId)) {
     throw new ApiError(403, 'Only team members can submit a milestone');
@@ -176,15 +200,17 @@ export async function submitMilestone(
     throw new ApiError(400, `Cannot submit a milestone for a sprint in "${sprint.status}" status`);
   }
 
-  const submission = await MilestoneSubmissionModel.create({
-    sprintId: sprint._id,
-    teamId: team._id,
-    artifactUrls: input.artifactUrls,
-    demoDate: input.demoDate ? new Date(input.demoDate) : null,
+  const submission = await prisma.milestoneSubmission.create({
+    data: {
+      sprintId: sprint.id,
+      teamId: team.id,
+      artifactUrls: input.artifactUrls,
+      demoDate: input.demoDate ? new Date(input.demoDate) : null,
+    },
+    include: { mentorFeedback: true },
   });
 
-  sprint.status = 'submitted';
-  await sprint.save();
+  await prisma.sprint.update({ where: { id: sprintId }, data: { status: 'submitted' } });
   return submission;
 }
 
@@ -192,7 +218,7 @@ export async function addFeedback(
   sprintId: string,
   viewer: AuthenticatedUser,
   input: AddFeedbackInput
-): Promise<SprintDocument> {
+): Promise<SprintWithTasks> {
   const { sprint, team } = await getOwnedSprint(sprintId);
   if (!isTeamMentor(team, viewer.userId)) {
     throw new ApiError(403, "Only this team's mentor can leave feedback");
@@ -201,27 +227,32 @@ export async function addFeedback(
     throw new ApiError(400, `Cannot review a sprint in "${sprint.status}" status`);
   }
 
-  const latest = await MilestoneSubmissionModel.findOne({ sprintId: sprint._id }).sort({
-    createdAt: -1,
+  const latest = await prisma.milestoneSubmission.findFirst({
+    where: { sprintId: sprint.id },
+    orderBy: { createdAt: 'desc' },
   });
   if (!latest) {
     throw new ApiError(400, 'No milestone submission to review yet');
   }
 
-  latest.mentorFeedback.push({
-    mentorId: new Types.ObjectId(viewer.userId),
-    comment: input.comment,
-    rating: input.rating,
-    createdAt: new Date(),
+  await prisma.milestoneFeedback.create({
+    data: {
+      milestoneSubmissionId: latest.id,
+      mentorId: viewer.userId,
+      comment: input.comment,
+      rating: input.rating,
+    },
   });
-  await latest.save();
 
-  sprint.status = 'reviewed';
-  await sprint.save();
+  const updatedSprint = await prisma.sprint.update({
+    where: { id: sprintId },
+    data: { status: 'reviewed' },
+    include: TASKS_INCLUDE,
+  });
 
   await Promise.all(
-    team.memberStudentIds.map(async (studentId) => {
-      const id = studentId.toString();
+    team.members.map(async (member) => {
+      const id = member.studentUserId;
       if (input.rating !== undefined) {
         // Ratings average, rather than sum, into the Mentor category — see
         // scoreWorker.ts's `average()` for why.
@@ -230,7 +261,7 @@ export async function addFeedback(
           'mentor',
           input.rating * 20,
           `Mentor feedback (${input.rating}/5) on Sprint Cycle ${sprint.cycleNumber}`,
-          sprint._id.toString()
+          sprint.id
         );
       }
       await createNotification(
@@ -242,13 +273,13 @@ export async function addFeedback(
     })
   );
 
-  return sprint;
+  return updatedSprint;
 }
 
 export async function completeSprint(
   sprintId: string,
   viewer: AuthenticatedUser
-): Promise<SprintDocument> {
+): Promise<SprintWithTasks> {
   const { sprint, team } = await getOwnedSprint(sprintId);
   if (!isTeamMentor(team, viewer.userId)) {
     throw new ApiError(403, "Only this team's mentor can mark a sprint complete");
@@ -257,35 +288,36 @@ export async function completeSprint(
     throw new ApiError(400, `Cannot complete a sprint in "${sprint.status}" status`);
   }
 
-  sprint.status = 'complete';
-  await sprint.save();
+  const updated = await prisma.sprint.update({
+    where: { id: sprintId },
+    data: { status: 'complete' },
+    include: TASKS_INCLUDE,
+  });
 
-  const nextSprint = await SprintModel.findOne({
-    teamId: team._id,
-    cycleNumber: sprint.cycleNumber + 1,
+  const nextSprint = await prisma.sprint.findUnique({
+    where: { teamId_cycleNumber: { teamId: team.id, cycleNumber: sprint.cycleNumber + 1 } },
   });
   if (nextSprint && nextSprint.status === 'not_started') {
-    nextSprint.status = 'in_progress';
-    await nextSprint.save();
+    await prisma.sprint.update({ where: { id: nextSprint.id }, data: { status: 'in_progress' } });
   }
 
   // One completed cycle is worth 1/3 of the Project category (3 cycles ==
   // 100), for every member of the team.
   await Promise.all(
-    team.memberStudentIds.map((studentId) =>
+    team.members.map((member) =>
       recordScoreEvent(
-        studentId.toString(),
+        member.studentUserId,
         'project',
         100 / 3,
         `Completed Sprint Cycle ${sprint.cycleNumber}`,
-        sprint._id.toString()
+        sprint.id
       )
     )
   );
 
   // Async, off the request path — the worker re-checks all 3 cycles and
   // grants investor access exactly once, idempotently.
-  await enqueueInvestorUnlockCheck(team._id.toString());
+  await enqueueInvestorUnlockCheck(team.id);
 
-  return sprint;
+  return updated;
 }

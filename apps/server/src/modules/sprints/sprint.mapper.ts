@@ -1,12 +1,10 @@
 import type { MilestoneSubmissionDto, SprintDto, TeamSprintsDto } from '@forge-loom/shared-types';
-import type { SprintDocument } from '../../models/Sprint.js';
-import type { MilestoneSubmissionDocument } from '../../models/MilestoneSubmission.js';
-import type { TeamSprintsView } from './sprint.service.js';
+import type { MilestoneSubmissionWithFeedback, SprintWithTasks, TeamSprintsView } from './sprint.service.js';
 
-export function toSprintDto(sprint: SprintDocument): SprintDto {
+export function toSprintDto(sprint: SprintWithTasks): SprintDto {
   return {
-    id: sprint._id.toString(),
-    teamId: sprint.teamId.toString(),
+    id: sprint.id,
+    teamId: sprint.teamId,
     cycleNumber: sprint.cycleNumber,
     status: sprint.status,
     startDate: sprint.startDate.toISOString(),
@@ -21,17 +19,17 @@ export function toSprintDto(sprint: SprintDocument): SprintDto {
 }
 
 export function toMilestoneSubmissionDto(
-  submission: MilestoneSubmissionDocument
+  submission: MilestoneSubmissionWithFeedback
 ): MilestoneSubmissionDto {
   return {
-    id: submission._id.toString(),
-    sprintId: submission.sprintId.toString(),
+    id: submission.id,
+    sprintId: submission.sprintId,
     artifactUrls: submission.artifactUrls,
     demoDate: submission.demoDate ? submission.demoDate.toISOString() : null,
     mentorFeedback: submission.mentorFeedback.map((entry) => ({
-      mentorId: entry.mentorId.toString(),
+      mentorId: entry.mentorId,
       comment: entry.comment,
-      rating: entry.rating,
+      rating: entry.rating ?? undefined,
       createdAt: entry.createdAt.toISOString(),
     })),
     createdAt: submission.createdAt.toISOString(),
@@ -46,12 +44,12 @@ export function toTeamSprintsDto(view: TeamSprintsView): TeamSprintsDto {
 
   return {
     team: {
-      id: view.team._id.toString(),
+      id: view.team.id,
       name: view.team.name,
       problemStatementTitle: view.problemStatementTitle,
       trainerEmail: view.trainerEmail,
       mentorEmail: view.mentorEmail,
-      memberCount: view.team.memberStudentIds.length,
+      memberCount: view.team.members.length,
     },
     sprints: view.sprints.map(toSprintDto),
     submissionsBySprintId,

@@ -56,6 +56,19 @@ const MIGRATED_TABLES = [
   'VideoProgress',
   'Assessment',
   'Certificate',
+  // Phase 3 — Citadel
+  'Cohort',
+  'Team',
+  'TeamMember',
+  'ProblemStatement',
+  'ProblemStatementDeliverable',
+  'Sprint',
+  'SprintTask',
+  'MilestoneSubmission',
+  'MilestoneFeedback',
+  'InvestorAccessGrant',
+  'Bookmark',
+  'InterestExpression',
 ];
 
 async function resetPostgres() {

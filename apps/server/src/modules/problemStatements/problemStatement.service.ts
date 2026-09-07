@@ -1,49 +1,59 @@
 import { Role } from '@forge-loom/shared-types';
-import {
-  ProblemStatementModel,
-  type ProblemStatementDocument,
-} from '../../models/ProblemStatement.js';
-import { BookmarkModel } from '../../models/Bookmark.js';
-import { InterestExpressionModel } from '../../models/InterestExpression.js';
-import { TeamModel } from '../../models/Team.js';
+import type { ProblemStatement, ProblemStatementDeliverable } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { AuthenticatedUser } from '../../middleware/authenticate.js';
 import type { CreateProblemStatementInput } from './problemStatement.validation.js';
 
+export type ProblemStatementWithDeliverables = ProblemStatement & {
+  deliverables: ProblemStatementDeliverable[];
+};
+
 export interface ProblemStatementRow {
-  problemStatement: ProblemStatementDocument;
+  problemStatement: ProblemStatementWithDeliverables;
   bookmarked: boolean;
   isMine: boolean;
   interested: boolean;
 }
 
+const DELIVERABLES_INCLUDE = { deliverables: { orderBy: { order: 'asc' as const } } };
+
 export async function createProblemStatement(
   postedBy: string,
   input: CreateProblemStatementInput
-): Promise<ProblemStatementDocument> {
-  return ProblemStatementModel.create({
-    title: input.title,
-    description: input.description,
-    overview: input.overview,
-    source: input.source,
-    domain: input.domain,
-    tags: input.tags ?? [],
-    teamSize: input.teamSize,
-    durationWeeks: input.durationWeeks,
-    difficulty: input.difficulty,
-    featured: input.featured ?? false,
-    deliverables: (input.deliverables ?? []).map((d) => ({
-      title: d.title,
-      done: d.done ?? false,
-    })),
-    postedBy,
+): Promise<ProblemStatementWithDeliverables> {
+  const deliverables = (input.deliverables ?? []).map((d, order) => ({
+    title: d.title,
+    done: d.done ?? false,
+    order,
+  }));
+
+  return prisma.problemStatement.create({
+    data: {
+      title: input.title,
+      description: input.description,
+      overview: input.overview,
+      source: input.source,
+      domain: input.domain,
+      tags: input.tags ?? [],
+      teamSize: input.teamSize,
+      durationWeeks: input.durationWeeks,
+      difficulty: input.difficulty,
+      featured: input.featured ?? false,
+      postedBy,
+      deliverables: { create: deliverables },
+    },
+    include: DELIVERABLES_INCLUDE,
   });
 }
 
 export async function listProblemStatements(
   viewer: AuthenticatedUser | undefined
 ): Promise<ProblemStatementRow[]> {
-  const all = await ProblemStatementModel.find().sort({ featured: -1, createdAt: -1 });
+  const all = await prisma.problemStatement.findMany({
+    orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
+    include: DELIVERABLES_INCLUDE,
+  });
 
   if (!viewer || viewer.role !== Role.Student) {
     return all.map((problemStatement) => ({
@@ -55,40 +65,44 @@ export async function listProblemStatements(
   }
 
   const [bookmarks, interests, myTeam] = await Promise.all([
-    BookmarkModel.find({ userId: viewer.userId }),
-    InterestExpressionModel.find({ userId: viewer.userId }),
-    TeamModel.findOne({ memberStudentIds: viewer.userId }),
+    prisma.bookmark.findMany({ where: { userId: viewer.userId } }),
+    prisma.interestExpression.findMany({ where: { userId: viewer.userId } }),
+    prisma.team.findFirst({ where: { members: { some: { studentUserId: viewer.userId } } } }),
   ]);
-  const bookmarkedIds = new Set(bookmarks.map((b) => b.problemStatementId.toString()));
-  const interestedIds = new Set(interests.map((i) => i.problemStatementId.toString()));
-  const myProblemStatementId = myTeam?.problemStatementId?.toString();
+  const bookmarkedIds = new Set(bookmarks.map((b) => b.problemStatementId));
+  const interestedIds = new Set(interests.map((i) => i.problemStatementId));
+  const myProblemStatementId = myTeam?.problemStatementId ?? undefined;
 
   return all.map((problemStatement) => ({
     problemStatement,
-    bookmarked: bookmarkedIds.has(problemStatement._id.toString()),
-    isMine: myProblemStatementId === problemStatement._id.toString(),
-    interested: interestedIds.has(problemStatement._id.toString()),
+    bookmarked: bookmarkedIds.has(problemStatement.id),
+    isMine: myProblemStatementId === problemStatement.id,
+    interested: interestedIds.has(problemStatement.id),
   }));
 }
 
 export async function expressInterest(userId: string, problemStatementId: string): Promise<void> {
-  const exists = await ProblemStatementModel.exists({ _id: problemStatementId });
+  const exists = await prisma.problemStatement.findUnique({ where: { id: problemStatementId } });
   if (!exists) {
     throw new ApiError(404, 'Problem statement not found');
   }
-  await InterestExpressionModel.findOneAndUpdate(
-    { userId, problemStatementId },
-    { userId, problemStatementId },
-    { upsert: true }
-  );
+  await prisma.interestExpression.upsert({
+    where: { userId_problemStatementId: { userId, problemStatementId } },
+    update: {},
+    create: { userId, problemStatementId },
+  });
 }
 
 export async function toggleBookmark(userId: string, problemStatementId: string): Promise<boolean> {
-  const existing = await BookmarkModel.findOne({ userId, problemStatementId });
+  const existing = await prisma.bookmark.findUnique({
+    where: { userId_problemStatementId: { userId, problemStatementId } },
+  });
   if (existing) {
-    await existing.deleteOne();
+    await prisma.bookmark.delete({
+      where: { userId_problemStatementId: { userId, problemStatementId } },
+    });
     return false;
   }
-  await BookmarkModel.create({ userId, problemStatementId });
+  await prisma.bookmark.create({ data: { userId, problemStatementId } });
   return true;
 }

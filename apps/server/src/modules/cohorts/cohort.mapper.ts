@@ -1,10 +1,10 @@
 import type { CohortDto } from '@forge-loom/shared-types';
-import type { CohortDocument } from '../../models/Cohort.js';
+import type { Cohort } from '@prisma/client';
 
-export function toCohortDto(cohort: CohortDocument): CohortDto {
+export function toCohortDto(cohort: Cohort): CohortDto {
   return {
-    id: cohort._id.toString(),
-    collegeId: cohort.collegeId.toString(),
+    id: cohort.id,
+    collegeId: cohort.collegeId,
     name: cohort.name,
     startDate: cohort.startDate.toISOString(),
     endDate: cohort.endDate.toISOString(),
