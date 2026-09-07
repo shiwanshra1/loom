@@ -1,9 +1,9 @@
 import type { VideoProgressDto } from '@forge-loom/shared-types';
-import type { VideoProgressDocument } from '../../models/VideoProgress.js';
+import type { VideoProgress } from '@prisma/client';
 
-export function toVideoProgressDto(progress: VideoProgressDocument): VideoProgressDto {
+export function toVideoProgressDto(progress: VideoProgress): VideoProgressDto {
   return {
-    courseId: progress.courseId.toString(),
+    courseId: progress.courseId,
     dayNumber: progress.dayNumber,
     lastPositionSeconds: progress.lastPositionSeconds,
     durationSeconds: progress.durationSeconds,

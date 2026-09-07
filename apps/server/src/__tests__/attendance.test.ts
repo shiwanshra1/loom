@@ -1,74 +1,69 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { Role } from '@forge-loom/shared-types';
-import { buildApp, connectDb, disconnectDb, createTestUser } from './helpers.js';
-import { CourseAdminProfileModel } from '../models/CourseAdminProfile.js';
-import { CourseModel } from '../models/Course.js';
-import { EnrollmentModel } from '../models/Enrollment.js';
-import { CourseSessionModel } from '../models/CourseSession.js';
-import { AttendanceRecordModel } from '../models/AttendanceRecord.js';
+import { buildApp, connectDb, disconnectDb, connectPrisma, disconnectPrisma, createTestUserPg } from './helpers.js';
+import { prisma } from '../config/prisma.js';
 
 const app = buildApp();
 
 beforeAll(async () => {
   await connectDb();
+  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
+  await disconnectPrisma();
 });
 
-// Skipped for the Phase 1->2 migration window: these tests need a user that
-// can both log in (now Postgres-backed, via Phase 1's auth cutover) and be
-// referenced as a Mongoose ObjectId by still-Mongo Course/Enrollment/
-// AttendanceRecord documents (Phase 2 domain) — a Prisma cuid id satisfies
-// neither a fresh Mongo user's `._id` shape nor a valid ObjectId for those
-// refs, so the two requirements are unreconcilable until Phase 2 migrates
-// this domain too. Un-skip as part of Phase 2's checkpoint — see
-// docs/prisma-migration-tickets.md.
-describe.skip('attendance marking', () => {
+describe('attendance marking', () => {
   it('lets the assigned trainer mark present/absent, blocks a non-enrolled student, and lets the student read their own history back', async () => {
     const {
       user: trainerUser,
       email: trainerEmail,
       password: trainerPw,
-    } = await createTestUser(Role.Trainer);
+    } = await createTestUserPg(Role.Trainer);
     const {
       user: studentUser,
       email: studentEmail,
       password: studentPw,
-    } = await createTestUser(Role.Student);
-    const { user: outsiderUser } = await createTestUser(Role.Student);
-    const { user: adminUser } = await createTestUser(Role.CourseAdmin);
+    } = await createTestUserPg(Role.Student);
+    const { user: outsiderUser } = await createTestUserPg(Role.Student);
+    const { user: adminUser } = await createTestUserPg(Role.CourseAdmin);
 
-    const adminProfile = await CourseAdminProfileModel.create({
-      userId: adminUser._id,
-      name: 'Attendance Test Admin',
+    const adminProfile = await prisma.courseAdminProfile.create({
+      data: { userId: adminUser.id, name: 'Attendance Test Admin' },
     });
-    const course = await CourseModel.create({
-      title: 'Offline Attendance Course',
-      createdBy: adminProfile._id,
-      deliveryMode: 'offline',
-      durationHours: 10,
-      durationDays: 1,
-      price: 0,
-      status: 'published',
-      trainerId: trainerUser._id,
-      syllabus: [{ dayNumber: 1, title: 'Day 1', youtubeVideoId: null }],
+    const course = await prisma.course.create({
+      data: {
+        title: 'Offline Attendance Course',
+        createdBy: adminProfile.id,
+        deliveryMode: 'offline',
+        durationHours: 10,
+        durationDays: 1,
+        price: 0,
+        status: 'published',
+        trainerId: trainerUser.id,
+        syllabus: { create: [{ dayNumber: 1, title: 'Day 1', youtubeVideoId: null }] },
+      },
     });
-    const session = await CourseSessionModel.create({
-      courseId: course._id,
-      dayNumber: 1,
-      scheduledDate: new Date(),
-      mode: 'offline',
-      status: 'scheduled',
-      trainerId: trainerUser._id,
+    const session = await prisma.courseSession.create({
+      data: {
+        courseId: course.id,
+        dayNumber: 1,
+        scheduledDate: new Date(),
+        mode: 'offline',
+        status: 'scheduled',
+        trainerId: trainerUser.id,
+      },
     });
-    await EnrollmentModel.create({
-      studentId: studentUser._id,
-      courseId: course._id,
-      status: 'active',
-      paymentAmount: 0,
+    await prisma.enrollment.create({
+      data: {
+        studentId: studentUser.id,
+        courseId: course.id,
+        status: 'active',
+        paymentAmount: 0,
+      },
     });
 
     const trainerLogin = await request(app)
@@ -77,42 +72,39 @@ describe.skip('attendance marking', () => {
     const trainerToken = trainerLogin.body.accessToken as string;
 
     const markResult = await request(app)
-      .post(`/api/sessions/${session._id.toString()}/attendance`)
+      .post(`/api/sessions/${session.id}/attendance`)
       .set('Authorization', `Bearer ${trainerToken}`)
       .send({
-        records: [{ studentId: studentUser._id.toString(), status: 'present' }],
+        records: [{ studentId: studentUser.id, status: 'present' }],
       });
     expect(markResult.status).toBe(200);
 
     const rejectedOutsider = await request(app)
-      .post(`/api/sessions/${session._id.toString()}/attendance`)
+      .post(`/api/sessions/${session.id}/attendance`)
       .set('Authorization', `Bearer ${trainerToken}`)
       .send({
-        records: [{ studentId: outsiderUser._id.toString(), status: 'present' }],
+        records: [{ studentId: outsiderUser.id, status: 'present' }],
       });
     expect(rejectedOutsider.status).toBe(400);
 
-    const stored = await AttendanceRecordModel.findOne({
-      sessionId: session._id,
-      studentId: studentUser._id,
+    const stored = await prisma.attendanceRecord.findUnique({
+      where: { sessionId_studentId: { sessionId: session.id, studentId: studentUser.id } },
     });
     expect(stored?.status).toBe('present');
 
     // Re-marking the same student updates the existing record rather than duplicating it.
     await request(app)
-      .post(`/api/sessions/${session._id.toString()}/attendance`)
+      .post(`/api/sessions/${session.id}/attendance`)
       .set('Authorization', `Bearer ${trainerToken}`)
       .send({
-        records: [{ studentId: studentUser._id.toString(), status: 'absent' }],
+        records: [{ studentId: studentUser.id, status: 'absent' }],
       });
-    const recordCount = await AttendanceRecordModel.countDocuments({
-      sessionId: session._id,
-      studentId: studentUser._id,
+    const recordCount = await prisma.attendanceRecord.count({
+      where: { sessionId: session.id, studentId: studentUser.id },
     });
     expect(recordCount).toBe(1);
-    const updated = await AttendanceRecordModel.findOne({
-      sessionId: session._id,
-      studentId: studentUser._id,
+    const updated = await prisma.attendanceRecord.findUnique({
+      where: { sessionId_studentId: { sessionId: session.id, studentId: studentUser.id } },
     });
     expect(updated?.status).toBe('absent');
 
@@ -120,9 +112,7 @@ describe.skip('attendance marking', () => {
       .post('/api/auth/login')
       .send({ email: studentEmail, password: studentPw });
     const historyRes = await request(app)
-      .get(
-        `/api/students/${studentUser._id.toString()}/attendance?courseId=${course._id.toString()}`
-      )
+      .get(`/api/students/${studentUser.id}/attendance?courseId=${course.id}`)
       .set('Authorization', `Bearer ${studentLogin.body.accessToken}`);
 
     expect(historyRes.status).toBe(200);
@@ -131,29 +121,31 @@ describe.skip('attendance marking', () => {
   });
 
   it('blocks a role other than trainer from marking attendance', async () => {
-    const { user: adminUser } = await createTestUser(Role.CourseAdmin);
-    const { email: studentEmail, password: studentPw } = await createTestUser(Role.Student);
+    const { user: adminUser } = await createTestUserPg(Role.CourseAdmin);
+    const { email: studentEmail, password: studentPw } = await createTestUserPg(Role.Student);
 
-    const adminProfile = await CourseAdminProfileModel.create({
-      userId: adminUser._id,
-      name: 'Another Admin',
+    const adminProfile = await prisma.courseAdminProfile.create({
+      data: { userId: adminUser.id, name: 'Another Admin' },
     });
-    const course = await CourseModel.create({
-      title: 'Blocked Attendance Course',
-      createdBy: adminProfile._id,
-      deliveryMode: 'offline',
-      durationHours: 1,
-      durationDays: 1,
-      price: 0,
-      status: 'published',
-      syllabus: [],
+    const course = await prisma.course.create({
+      data: {
+        title: 'Blocked Attendance Course',
+        createdBy: adminProfile.id,
+        deliveryMode: 'offline',
+        durationHours: 1,
+        durationDays: 1,
+        price: 0,
+        status: 'published',
+      },
     });
-    const session = await CourseSessionModel.create({
-      courseId: course._id,
-      dayNumber: 1,
-      scheduledDate: new Date(),
-      mode: 'offline',
-      status: 'scheduled',
+    const session = await prisma.courseSession.create({
+      data: {
+        courseId: course.id,
+        dayNumber: 1,
+        scheduledDate: new Date(),
+        mode: 'offline',
+        status: 'scheduled',
+      },
     });
 
     const studentLogin = await request(app)
@@ -161,7 +153,7 @@ describe.skip('attendance marking', () => {
       .send({ email: studentEmail, password: studentPw });
 
     const res = await request(app)
-      .post(`/api/sessions/${session._id.toString()}/attendance`)
+      .post(`/api/sessions/${session.id}/attendance`)
       .set('Authorization', `Bearer ${studentLogin.body.accessToken}`)
       .send({ records: [] });
 

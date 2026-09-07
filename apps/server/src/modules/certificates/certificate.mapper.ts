@@ -1,11 +1,11 @@
 import type { CertificateDto } from '@forge-loom/shared-types';
+import type { Certificate } from '@prisma/client';
 import { env } from '../../config/env.js';
-import type { CertificateDocument } from '../../models/Certificate.js';
 import { getCertificateDownloadUrl } from './certificate.service.js';
 
-export async function toCertificateDto(certificate: CertificateDocument): Promise<CertificateDto> {
+export async function toCertificateDto(certificate: Certificate): Promise<CertificateDto> {
   return {
-    id: certificate._id.toString(),
+    id: certificate.id,
     courseTitle: certificate.courseTitle,
     issuingBody: certificate.issuingBody,
     token: certificate.token,

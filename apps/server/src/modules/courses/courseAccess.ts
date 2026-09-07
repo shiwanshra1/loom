@@ -1,40 +1,43 @@
-import { CourseAdminProfileModel } from '../../models/CourseAdminProfile.js';
-import { CourseModel, type CourseDocument } from '../../models/Course.js';
-import { EnrollmentModel } from '../../models/Enrollment.js';
+import type { Course, SyllabusDay } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 
 // Shared by sessions, assessments, and the progress rollup — all three need
 // the same "can this viewer see/manage this course" checks.
 
-export async function requireCourse(courseId: string): Promise<CourseDocument> {
-  const course = await CourseModel.findById(courseId);
+export type CourseWithSyllabus = Course & { syllabus: SyllabusDay[] };
+
+const SYLLABUS_INCLUDE = { syllabus: { orderBy: { dayNumber: 'asc' as const } } };
+
+export async function requireCourse(courseId: string): Promise<CourseWithSyllabus> {
+  const course = await prisma.course.findUnique({
+    where: { id: courseId },
+    include: SYLLABUS_INCLUDE,
+  });
   if (!course) {
     throw new ApiError(404, 'Course not found');
   }
   return course;
 }
 
-export function isCourseTrainer(course: CourseDocument, userId: string): boolean {
-  return Boolean(course.trainerId) && course.trainerId?.toString() === userId;
+export function isCourseTrainer(course: Course, userId: string): boolean {
+  return course.trainerId === userId;
 }
 
-export async function isCourseAdminOwner(course: CourseDocument, userId: string): Promise<boolean> {
-  const profile = await CourseAdminProfileModel.findOne({ userId });
-  return Boolean(profile && course.createdBy.equals(profile._id));
+export async function isCourseAdminOwner(course: Course, userId: string): Promise<boolean> {
+  const profile = await prisma.courseAdminProfile.findUnique({ where: { userId } });
+  return Boolean(profile && course.createdBy === profile.id);
 }
 
-export async function isEnrolledStudent(course: CourseDocument, userId: string): Promise<boolean> {
-  return Boolean(
-    await EnrollmentModel.exists({
-      studentId: userId,
-      courseId: course._id,
-      status: { $in: ['active', 'completed'] },
-    })
-  );
+export async function isEnrolledStudent(course: Course, userId: string): Promise<boolean> {
+  const count = await prisma.enrollment.count({
+    where: { studentId: userId, courseId: course.id, status: { in: ['active', 'completed'] } },
+  });
+  return count > 0;
 }
 
 export async function canViewCourse(
-  course: CourseDocument,
+  course: Course,
   viewer: { userId: string }
 ): Promise<boolean> {
   return (
@@ -44,9 +47,6 @@ export async function canViewCourse(
   );
 }
 
-export async function canManageCourseContent(
-  course: CourseDocument,
-  userId: string
-): Promise<boolean> {
+export async function canManageCourseContent(course: Course, userId: string): Promise<boolean> {
   return isCourseTrainer(course, userId) || (await isCourseAdminOwner(course, userId));
 }

@@ -1,11 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import type { Certificate } from '@prisma/client';
 import { env } from '../../config/env.js';
 import { s3Client } from '../../config/s3.js';
-import { CertificateModel, type CertificateDocument } from '../../models/Certificate.js';
-import { EnrollmentModel } from '../../models/Enrollment.js';
-import { StudentProfileModel } from '../../models/StudentProfile.js';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { canManageCourseContent, requireCourse } from '../courses/courseAccess.js';
 import { createNotification } from '../notifications/notification.service.js';
@@ -19,8 +18,8 @@ export async function issueCertificate(
   enrollmentId: string,
   viewer: AuthenticatedUser,
   input: IssueCertificateInput
-): Promise<CertificateDocument> {
-  const enrollment = await EnrollmentModel.findById(enrollmentId);
+): Promise<Certificate> {
+  const enrollment = await prisma.enrollment.findUnique({ where: { id: enrollmentId } });
   if (!enrollment) {
     throw new ApiError(404, 'Enrollment not found');
   }
@@ -31,17 +30,17 @@ export async function issueCertificate(
     );
   }
 
-  const course = await requireCourse(enrollment.courseId.toString());
+  const course = await requireCourse(enrollment.courseId);
   if (!(await canManageCourseContent(course, viewer.userId))) {
     throw new ApiError(403, 'You do not have access to this course');
   }
 
-  const existing = await CertificateModel.findOne({ enrollmentId });
+  const existing = await prisma.certificate.findUnique({ where: { enrollmentId } });
   if (existing) {
     throw new ApiError(409, 'A certificate has already been issued for this enrollment');
   }
 
-  const profile = await StudentProfileModel.findOne({ userId: enrollment.studentId });
+  const profile = await prisma.studentProfile.findUnique({ where: { userId: enrollment.studentId } });
   if (!profile) {
     throw new ApiError(404, 'Student profile not found');
   }
@@ -69,23 +68,26 @@ export async function issueCertificate(
     })
   );
 
-  const certificate = await CertificateModel.create({
-    studentId: enrollment.studentId,
-    courseId: course._id,
-    enrollmentId: enrollment._id,
-    courseTitle: course.title,
-    issuingBody,
-    token,
-    pdfKey,
-    issuedAt,
+  const certificate = await prisma.certificate.create({
+    data: {
+      studentId: enrollment.studentId,
+      courseId: course.id,
+      enrollmentId: enrollment.id,
+      courseTitle: course.title,
+      issuingBody,
+      token,
+      pdfKey,
+      issuedAt,
+    },
   });
 
-  enrollment.status = 'completed';
-  enrollment.completedAt = issuedAt;
-  await enrollment.save();
+  await prisma.enrollment.update({
+    where: { id: enrollment.id },
+    data: { status: 'completed', completedAt: issuedAt },
+  });
 
   await createNotification(
-    enrollment.studentId.toString(),
+    enrollment.studentId,
     'certificate_issued',
     `Certificate issued for ${course.title}`,
     `Issued by ${issuingBody}`
@@ -94,8 +96,8 @@ export async function issueCertificate(
   return certificate;
 }
 
-export async function listMyCertificates(studentId: string): Promise<CertificateDocument[]> {
-  return CertificateModel.find({ studentId }).sort({ issuedAt: -1 });
+export async function listMyCertificates(studentId: string): Promise<Certificate[]> {
+  return prisma.certificate.findMany({ where: { studentId }, orderBy: { issuedAt: 'desc' } });
 }
 
 export interface CertificateVerificationResult {
@@ -109,11 +111,11 @@ export interface CertificateVerificationResult {
 // Deliberately returns only non-sensitive confirmation data — this is the
 // public, unauthenticated, rate-limited endpoint.
 export async function verifyCertificate(token: string): Promise<CertificateVerificationResult> {
-  const certificate = await CertificateModel.findOne({ token });
+  const certificate = await prisma.certificate.findUnique({ where: { token } });
   if (!certificate) {
     return { valid: false };
   }
-  const profile = await StudentProfileModel.findOne({ userId: certificate.studentId });
+  const profile = await prisma.studentProfile.findUnique({ where: { userId: certificate.studentId } });
   return {
     valid: true,
     studentName: profile?.name ?? 'Unknown',
@@ -123,7 +125,7 @@ export async function verifyCertificate(token: string): Promise<CertificateVerif
   };
 }
 
-export async function getCertificateDownloadUrl(certificate: CertificateDocument): Promise<string> {
+export async function getCertificateDownloadUrl(certificate: Certificate): Promise<string> {
   const command = new GetObjectCommand({ Bucket: env.s3.bucket, Key: certificate.pdfKey });
   return getSignedUrl(s3Client, command, { expiresIn: 3600 });
 }

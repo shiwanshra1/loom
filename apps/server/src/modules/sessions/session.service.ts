@@ -1,8 +1,5 @@
-import { type CourseDocument } from '../../models/Course.js';
-import { CourseSessionModel, type CourseSessionDocument } from '../../models/CourseSession.js';
-import { AttendanceRecordModel } from '../../models/AttendanceRecord.js';
-import { EnrollmentModel } from '../../models/Enrollment.js';
-import { UserModel } from '../../models/User.js';
+import type { AttendanceRecord, CourseSession } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { createNotification } from '../notifications/notification.service.js';
 import {
@@ -10,6 +7,7 @@ import {
   isCourseAdminOwner,
   isCourseTrainer,
   requireCourse,
+  type CourseWithSyllabus,
 } from '../courses/courseAccess.js';
 import type { MarkAttendanceInput, UpdateSessionInput } from './session.validation.js';
 
@@ -18,12 +16,12 @@ import type { MarkAttendanceInput, UpdateSessionInput } from './session.validati
 // idempotently, the first time a course gets its first active enrollment;
 // since there's no cohort/batch concept yet (that's Phase 6), this treats the
 // whole course as a single implicit cohort starting "today."
-export async function ensureSessionsForCourse(course: CourseDocument): Promise<void> {
+export async function ensureSessionsForCourse(course: CourseWithSyllabus): Promise<void> {
   if (course.deliveryMode !== 'offline') {
     return;
   }
 
-  const existing = await CourseSessionModel.countDocuments({ courseId: course._id });
+  const existing = await prisma.courseSession.count({ where: { courseId: course.id } });
   if (existing > 0) {
     return;
   }
@@ -33,7 +31,7 @@ export async function ensureSessionsForCourse(course: CourseDocument): Promise<v
     const scheduledDate = new Date(baseDate);
     scheduledDate.setDate(scheduledDate.getDate() + (day.dayNumber - 1));
     return {
-      courseId: course._id,
+      courseId: course.id,
       dayNumber: day.dayNumber,
       scheduledDate,
       mode: 'offline' as const,
@@ -44,7 +42,7 @@ export async function ensureSessionsForCourse(course: CourseDocument): Promise<v
   });
 
   if (sessions.length > 0) {
-    await CourseSessionModel.insertMany(sessions);
+    await prisma.courseSession.createMany({ data: sessions });
   }
 }
 
@@ -56,14 +54,14 @@ interface Viewer {
 export async function listCourseSessions(
   courseId: string,
   viewer: Viewer
-): Promise<CourseSessionDocument[]> {
+): Promise<CourseSession[]> {
   const course = await requireCourse(courseId);
 
   if (!(await canViewCourse(course, viewer))) {
     throw new ApiError(404, 'Course not found');
   }
 
-  return CourseSessionModel.find({ courseId }).sort({ dayNumber: 1 });
+  return prisma.courseSession.findMany({ where: { courseId }, orderBy: { dayNumber: 'asc' } });
 }
 
 export interface RosterEntry {
@@ -79,27 +77,28 @@ export async function getRoster(courseId: string, trainerUserId: string): Promis
     throw new ApiError(403, 'You do not have access to this course');
   }
 
-  const enrollments = await EnrollmentModel.find({
-    courseId,
-    status: { $in: ['active', 'completed'] },
+  const enrollments = await prisma.enrollment.findMany({
+    where: { courseId, status: { in: ['active', 'completed'] } },
   });
-  const students = await UserModel.find({ _id: { $in: enrollments.map((e) => e.studentId) } });
-  const emailByStudentId = new Map(students.map((s) => [s._id.toString(), s.email]));
+  const students = await prisma.user.findMany({
+    where: { id: { in: enrollments.map((e) => e.studentId) } },
+  });
+  const emailByStudentId = new Map(students.map((s) => [s.id, s.email]));
 
   return enrollments.map((enrollment) => ({
-    studentId: enrollment.studentId.toString(),
-    email: emailByStudentId.get(enrollment.studentId.toString()) ?? '',
-    enrollmentId: enrollment._id.toString(),
+    studentId: enrollment.studentId,
+    email: emailByStudentId.get(enrollment.studentId) ?? '',
+    enrollmentId: enrollment.id,
     enrollmentStatus: enrollment.status,
   }));
 }
 
 async function getOwnedSession(sessionId: string, trainerUserId: string) {
-  const session = await CourseSessionModel.findById(sessionId);
+  const session = await prisma.courseSession.findUnique({ where: { id: sessionId } });
   if (!session) {
     throw new ApiError(404, 'Session not found');
   }
-  const course = await requireCourse(session.courseId.toString());
+  const course = await requireCourse(session.courseId);
   if (!isCourseTrainer(course, trainerUserId)) {
     throw new ApiError(403, 'You do not have access to this session');
   }
@@ -116,7 +115,7 @@ export async function updateSession(
   sessionId: string,
   trainerUserId: string,
   input: UpdateSessionInput
-): Promise<CourseSessionDocument> {
+): Promise<CourseSession> {
   const { session } = await getOwnedSession(sessionId, trainerUserId);
 
   const allowed = ALLOWED_SESSION_TRANSITIONS[session.status] ?? [];
@@ -124,28 +123,29 @@ export async function updateSession(
     throw new ApiError(400, `Cannot move a session from "${session.status}" to "${input.status}"`);
   }
 
-  session.status = input.status;
-  session.cancelReason = input.status === 'cancelled' ? (input.cancelReason ?? null) : null;
-  await session.save();
+  const cancelReason = input.status === 'cancelled' ? (input.cancelReason ?? null) : null;
+  const updated = await prisma.courseSession.update({
+    where: { id: sessionId },
+    data: { status: input.status, cancelReason },
+  });
 
   if (input.status === 'cancelled') {
-    const enrollments = await EnrollmentModel.find({
-      courseId: session.courseId,
-      status: { $in: ['active', 'completed'] },
+    const enrollments = await prisma.enrollment.findMany({
+      where: { courseId: session.courseId, status: { in: ['active', 'completed'] } },
     });
     await Promise.all(
       enrollments.map((enrollment) =>
         createNotification(
-          enrollment.studentId.toString(),
+          enrollment.studentId,
           'session_cancelled',
           `Day ${session.dayNumber} session cancelled`,
-          session.cancelReason ?? undefined
+          cancelReason ?? undefined
         )
       )
     );
   }
 
-  return session;
+  return updated;
 }
 
 // Submitting attendance also marks the session completed — in practice a
@@ -155,7 +155,7 @@ export async function markAttendance(
   sessionId: string,
   trainerUserId: string,
   input: MarkAttendanceInput
-): Promise<CourseSessionDocument> {
+): Promise<CourseSession> {
   const { session, course } = await getOwnedSession(sessionId, trainerUserId);
   if (session.status === 'cancelled') {
     throw new ApiError(400, 'Cannot mark attendance for a cancelled session');
@@ -163,11 +163,10 @@ export async function markAttendance(
 
   const enrolledStudentIds = new Set(
     (
-      await EnrollmentModel.find({
-        courseId: course._id,
-        status: { $in: ['active', 'completed'] },
+      await prisma.enrollment.findMany({
+        where: { courseId: course.id, status: { in: ['active', 'completed'] } },
       })
-    ).map((e) => e.studentId.toString())
+    ).map((e) => e.studentId)
   );
 
   const invalid = input.records.filter((r) => !enrolledStudentIds.has(r.studentId));
@@ -181,23 +180,29 @@ export async function markAttendance(
   const markedAt = new Date();
   await Promise.all(
     input.records.map((record) =>
-      AttendanceRecordModel.findOneAndUpdate(
-        { sessionId: session._id, studentId: record.studentId },
-        { status: record.status, markedAt, markedBy: trainerUserId },
-        { upsert: true }
-      )
+      prisma.attendanceRecord.upsert({
+        where: { sessionId_studentId: { sessionId: session.id, studentId: record.studentId } },
+        update: { status: record.status, markedAt, markedBy: trainerUserId },
+        create: {
+          sessionId: session.id,
+          studentId: record.studentId,
+          status: record.status,
+          markedAt,
+          markedBy: trainerUserId,
+        },
+      })
     )
   );
 
-  session.status = 'completed';
-  session.cancelReason = null;
-  await session.save();
-  return session;
+  return prisma.courseSession.update({
+    where: { id: sessionId },
+    data: { status: 'completed', cancelReason: null },
+  });
 }
 
 export interface AttendanceHistoryRow {
-  session: CourseSessionDocument;
-  status: 'present' | 'absent' | 'excused' | null;
+  session: CourseSession;
+  status: AttendanceRecord['status'] | null;
   markedAt: Date | null;
 }
 
@@ -217,15 +222,17 @@ export async function getStudentAttendance(
     throw new ApiError(403, 'You do not have access to this attendance history');
   }
 
-  const sessions = await CourseSessionModel.find({ courseId }).sort({ dayNumber: 1 });
-  const records = await AttendanceRecordModel.find({
-    studentId,
-    sessionId: { $in: sessions.map((s) => s._id) },
+  const sessions = await prisma.courseSession.findMany({
+    where: { courseId },
+    orderBy: { dayNumber: 'asc' },
   });
-  const recordBySession = new Map(records.map((r) => [r.sessionId.toString(), r]));
+  const records = await prisma.attendanceRecord.findMany({
+    where: { studentId, sessionId: { in: sessions.map((s) => s.id) } },
+  });
+  const recordBySession = new Map(records.map((r) => [r.sessionId, r]));
 
   return sessions.map((session) => {
-    const record = recordBySession.get(session._id.toString());
+    const record = recordBySession.get(session.id);
     return {
       session,
       status: record?.status ?? null,

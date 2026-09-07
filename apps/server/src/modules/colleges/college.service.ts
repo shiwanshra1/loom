@@ -6,8 +6,6 @@ import {
 } from '@forge-loom/shared-types';
 import type { College } from '@prisma/client';
 import { prisma } from '../../config/prisma.js';
-import { EnrollmentModel } from '../../models/Enrollment.js';
-import { CourseModel } from '../../models/Course.js';
 import { CohortModel } from '../../models/Cohort.js';
 import { TeamModel } from '../../models/Team.js';
 import type { CreateCollegeInput } from './college.validation.js';
@@ -45,27 +43,32 @@ function keepValidObjectIds(ids: string[]): string[] {
 // enrolled counts as one of its programs. Real, correctly scoped, without
 // retrofitting a collegeId onto Course (which would contradict the open
 // catalog model Phases 1-2 already shipped).
+//
+// Course/Enrollment moved to Prisma in Phase 2 — this closes the gap Phase 1
+// had to accept here (new-era students showed 0 programs since Enrollment
+// was still Mongo-only). Now a single consistent Postgres read.
 export async function getCollegePrograms(collegeId: string): Promise<CollegeProgramDto[]> {
   const students = await prisma.studentProfile.findMany({ where: { collegeId } });
-  const studentUserIds = keepValidObjectIds(students.map((s) => s.userId));
 
-  const enrollments = await EnrollmentModel.find({
-    studentId: { $in: studentUserIds },
-    status: { $in: ['active', 'completed'] },
+  const enrollments = await prisma.enrollment.groupBy({
+    by: ['courseId'],
+    where: {
+      studentId: { in: students.map((s) => s.userId) },
+      status: { in: ['active', 'completed'] },
+    },
+    _count: { _all: true },
   });
 
-  const countByCourseId = new Map<string, number>();
-  for (const enrollment of enrollments) {
-    const key = enrollment.courseId.toString();
-    countByCourseId.set(key, (countByCourseId.get(key) ?? 0) + 1);
-  }
+  const courses = await prisma.course.findMany({
+    where: { id: { in: enrollments.map((e) => e.courseId) } },
+  });
+  const countByCourseId = new Map(enrollments.map((e) => [e.courseId, e._count._all]));
 
-  const courses = await CourseModel.find({ _id: { $in: [...countByCourseId.keys()] } });
   return courses.map((course) => ({
-    courseId: course._id.toString(),
+    courseId: course.id,
     title: course.title,
     status: course.status,
-    studentsEnrolled: countByCourseId.get(course._id.toString()) ?? 0,
+    studentsEnrolled: countByCourseId.get(course.id) ?? 0,
   }));
 }
 

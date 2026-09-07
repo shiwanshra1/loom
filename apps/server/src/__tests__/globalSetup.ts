@@ -26,12 +26,12 @@ export default async function setup() {
   await resetPostgres();
 }
 
-// Scoped truncate covering only the tables Phase 1 (identity/colleges) writes
-// to — a deliberately narrow preview of Phase 7's real work, which will
-// generalize this to every table by reading `information_schema.tables`
-// instead of a hardcoded list. Extend this list as each further phase lands,
-// not all at once now.
-const PHASE_1_TABLES = [
+// Scoped truncate covering only the tables migrated so far — a deliberately
+// narrow preview of Phase 7's real work, which will generalize this to every
+// table by reading `information_schema.tables` instead of a hardcoded list.
+// Extend this list as each further phase lands, not all at once now.
+const MIGRATED_TABLES = [
+  // Phase 1 — Identity/colleges
   'User',
   'StudentProfile',
   'MentorProfile',
@@ -47,6 +47,15 @@ const PHASE_1_TABLES = [
   'MemberProfile',
   'CourseAdminProfile',
   'College',
+  // Phase 2 — Courses/Enrollment/Sessions
+  'Course',
+  'SyllabusDay',
+  'CourseSession',
+  'Enrollment',
+  'AttendanceRecord',
+  'VideoProgress',
+  'Assessment',
+  'Certificate',
 ];
 
 async function resetPostgres() {
@@ -58,7 +67,7 @@ async function resetPostgres() {
   }
 
   const prisma = new PrismaClient();
-  const tableList = PHASE_1_TABLES.map((t) => `"${t}"`).join(', ');
+  const tableList = MIGRATED_TABLES.map((t) => `"${t}"`).join(', ');
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE;`);
   await prisma.$disconnect();
 }

@@ -1,6 +1,5 @@
-import { CourseModel } from '../../models/Course.js';
-import { EnrollmentModel } from '../../models/Enrollment.js';
-import { VideoProgressModel, type VideoProgressDocument } from '../../models/VideoProgress.js';
+import type { VideoProgress } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { UpsertVideoProgressInput } from './videoProgress.validation.js';
 
@@ -11,18 +10,19 @@ const COMPLETION_THRESHOLD_PERCENT = 90;
 export async function upsertVideoProgress(
   studentId: string,
   input: UpsertVideoProgressInput
-): Promise<VideoProgressDocument> {
-  const course = await CourseModel.findById(input.courseId);
+): Promise<VideoProgress> {
+  const course = await prisma.course.findUnique({
+    where: { id: input.courseId },
+    include: { syllabus: true },
+  });
   if (!course) {
     throw new ApiError(404, 'Course not found');
   }
 
-  const enrolled = await EnrollmentModel.exists({
-    studentId,
-    courseId: input.courseId,
-    status: { $in: ['active', 'completed'] },
+  const enrolledCount = await prisma.enrollment.count({
+    where: { studentId, courseId: input.courseId, status: { in: ['active', 'completed'] } },
   });
-  if (!enrolled) {
+  if (enrolledCount === 0) {
     throw new ApiError(403, 'You are not enrolled in this course');
   }
 
@@ -36,24 +36,35 @@ export async function upsertVideoProgress(
       ? Math.min(100, Math.round((input.positionSeconds / input.durationSeconds) * 100))
       : 0;
 
-  const updated = await VideoProgressModel.findOneAndUpdate(
-    { studentId, courseId: input.courseId, dayNumber: input.dayNumber },
-    {
+  return prisma.videoProgress.upsert({
+    where: {
+      studentId_courseId_dayNumber: {
+        studentId,
+        courseId: input.courseId,
+        dayNumber: input.dayNumber,
+      },
+    },
+    update: {
       lastPositionSeconds: input.positionSeconds,
       durationSeconds: input.durationSeconds,
       percentWatched,
       completed: percentWatched >= COMPLETION_THRESHOLD_PERCENT,
     },
-    { upsert: true, new: true }
-  );
-  // `upsert: true` guarantees a document; the `| null` in the type is only
-  // there for the non-upsert case.
-  return updated!;
+    create: {
+      studentId,
+      courseId: input.courseId,
+      dayNumber: input.dayNumber,
+      lastPositionSeconds: input.positionSeconds,
+      durationSeconds: input.durationSeconds,
+      percentWatched,
+      completed: percentWatched >= COMPLETION_THRESHOLD_PERCENT,
+    },
+  });
 }
 
 export async function listVideoProgress(
   studentId: string,
   courseId: string
-): Promise<VideoProgressDocument[]> {
-  return VideoProgressModel.find({ studentId, courseId });
+): Promise<VideoProgress[]> {
+  return prisma.videoProgress.findMany({ where: { studentId, courseId } });
 }

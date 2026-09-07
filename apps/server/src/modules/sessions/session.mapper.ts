@@ -1,17 +1,17 @@
 import type { AttendanceHistoryEntryDto, CourseSessionDto } from '@forge-loom/shared-types';
-import type { CourseSessionDocument } from '../../models/CourseSession.js';
+import type { CourseSession } from '@prisma/client';
 import type { AttendanceHistoryRow } from './session.service.js';
 
-export function toSessionDto(session: CourseSessionDocument): CourseSessionDto {
+export function toSessionDto(session: CourseSession): CourseSessionDto {
   return {
-    id: session._id.toString(),
-    courseId: session.courseId.toString(),
+    id: session.id,
+    courseId: session.courseId,
     dayNumber: session.dayNumber,
     scheduledDate: session.scheduledDate.toISOString(),
     mode: session.mode,
     status: session.status,
     cancelReason: session.cancelReason,
-    trainerId: session.trainerId ? session.trainerId.toString() : null,
+    trainerId: session.trainerId,
   };
 }
 

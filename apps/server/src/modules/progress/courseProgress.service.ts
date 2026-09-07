@@ -1,7 +1,5 @@
-import { CourseSessionModel } from '../../models/CourseSession.js';
-import { AttendanceRecordModel } from '../../models/AttendanceRecord.js';
-import { VideoProgressModel } from '../../models/VideoProgress.js';
-import { AssessmentModel, type AssessmentDocument } from '../../models/Assessment.js';
+import type { Assessment } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { isCourseAdminOwner, isCourseTrainer, requireCourse } from '../courses/courseAccess.js';
 
@@ -16,7 +14,7 @@ export interface CourseProgressResult {
   modulesCompleted: number;
   modulesTotal: number;
   nextSession: { dayNumber: number; scheduledDate: Date } | null;
-  nextAssessment: AssessmentDocument | null;
+  nextAssessment: Assessment | null;
 }
 
 // The single computed rollup a KPI view needs — everything here is
@@ -44,17 +42,14 @@ export async function getStudentCourseProgress(
   let nextSession: { dayNumber: number; scheduledDate: Date } | null = null;
 
   if (course.deliveryMode === 'offline') {
-    const sessions = await CourseSessionModel.find({ courseId });
-    const records = await AttendanceRecordModel.find({
-      studentId,
-      sessionId: { $in: sessions.map((s) => s._id) },
+    const sessions = await prisma.courseSession.findMany({ where: { courseId } });
+    const records = await prisma.attendanceRecord.findMany({
+      where: { studentId, sessionId: { in: sessions.map((s) => s.id) } },
     });
     const creditedSessionIds = new Set(
-      records
-        .filter((r) => r.status === 'present' || r.status === 'excused')
-        .map((r) => r.sessionId.toString())
+      records.filter((r) => r.status === 'present' || r.status === 'excused').map((r) => r.sessionId)
     );
-    modulesCompleted = sessions.filter((s) => creditedSessionIds.has(s._id.toString())).length;
+    modulesCompleted = sessions.filter((s) => creditedSessionIds.has(s.id)).length;
 
     const upcoming = sessions
       .filter((s) => s.status === 'scheduled')
@@ -63,16 +58,14 @@ export async function getStudentCourseProgress(
       nextSession = { dayNumber: upcoming.dayNumber, scheduledDate: upcoming.scheduledDate };
     }
   } else {
-    const progress = await VideoProgressModel.find({ studentId, courseId });
+    const progress = await prisma.videoProgress.findMany({ where: { studentId, courseId } });
     modulesCompleted = progress.filter((p) => p.completed).length;
   }
 
-  const nextAssessment =
-    (
-      await AssessmentModel.find({ courseId, scheduledDate: { $gte: new Date() } }).sort({
-        scheduledDate: 1,
-      })
-    )[0] ?? null;
+  const nextAssessment = await prisma.assessment.findFirst({
+    where: { courseId, scheduledDate: { gte: new Date() } },
+    orderBy: { scheduledDate: 'asc' },
+  });
 
   return {
     courseId,

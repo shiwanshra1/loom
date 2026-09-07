@@ -1,10 +1,10 @@
 import type { AssessmentDto } from '@forge-loom/shared-types';
-import type { AssessmentDocument } from '../../models/Assessment.js';
+import type { Assessment } from '@prisma/client';
 
-export function toAssessmentDto(assessment: AssessmentDocument): AssessmentDto {
+export function toAssessmentDto(assessment: Assessment): AssessmentDto {
   return {
-    id: assessment._id.toString(),
-    courseId: assessment.courseId.toString(),
+    id: assessment.id,
+    courseId: assessment.courseId,
     title: assessment.title,
     type: assessment.type,
     scheduledDate: assessment.scheduledDate.toISOString(),

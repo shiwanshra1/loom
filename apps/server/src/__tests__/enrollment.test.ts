@@ -2,10 +2,8 @@ import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { Role } from '@forge-loom/shared-types';
-import { buildApp, connectDb, disconnectDb, createTestUser } from './helpers.js';
-import { CourseAdminProfileModel } from '../models/CourseAdminProfile.js';
-import { CourseModel } from '../models/Course.js';
-import { EnrollmentModel } from '../models/Enrollment.js';
+import { buildApp, connectDb, disconnectDb, connectPrisma, disconnectPrisma, createTestUserPg } from './helpers.js';
+import { prisma } from '../config/prisma.js';
 
 // The only network call in the create-enrollment path is the outbound
 // Razorpay order-creation request — mocked here so the suite is
@@ -29,41 +27,35 @@ const app = buildApp();
 
 beforeAll(async () => {
   await connectDb();
+  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
+  await disconnectPrisma();
 });
 
 async function createPublishedCourse(price: number) {
-  const { user: adminUser } = await createTestUser(Role.CourseAdmin);
-  const adminProfile = await CourseAdminProfileModel.create({
-    userId: adminUser._id,
-    name: 'Test Course Admin',
+  const { user: adminUser } = await createTestUserPg(Role.CourseAdmin);
+  const adminProfile = await prisma.courseAdminProfile.create({
+    data: { userId: adminUser.id, name: 'Test Course Admin' },
   });
-  const course = await CourseModel.create({
-    title: 'Test Course',
-    createdBy: adminProfile._id,
-    deliveryMode: 'online',
-    durationHours: 10,
-    durationDays: 5,
-    price,
-    status: 'published',
-    syllabus: [],
+  return prisma.course.create({
+    data: {
+      title: 'Test Course',
+      createdBy: adminProfile.id,
+      deliveryMode: 'online',
+      durationHours: 10,
+      durationDays: 5,
+      price,
+      status: 'published',
+    },
   });
-  return course;
 }
 
-// Skipped for the Phase 1->2 migration window: these tests need a user that
-// can both log in (now Postgres-backed, via Phase 1's auth cutover) and be
-// referenced as a Mongoose ObjectId by still-Mongo Course/Enrollment
-// documents (Phase 2 domain) — a Prisma cuid id satisfies neither a fresh
-// Mongo user's `._id` shape nor a valid ObjectId for those refs, so the two
-// requirements are unreconcilable until Phase 2 migrates this domain too.
-// Un-skip as part of Phase 2's checkpoint — see docs/prisma-migration-tickets.md.
-describe.skip('enrollment + payment flow', () => {
+describe('enrollment + payment flow', () => {
   it('creates a pending enrollment with a real Razorpay order id, then verifies payment with a correctly-computed signature', async () => {
-    const { email, password } = await createTestUser(Role.Student);
+    const { email, password } = await createTestUserPg(Role.Student);
     const course = await createPublishedCourse(499);
 
     const login = await request(app).post('/api/auth/login').send({ email, password });
@@ -72,7 +64,7 @@ describe.skip('enrollment + payment flow', () => {
     const created = await request(app)
       .post('/api/enrollments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ courseId: course._id.toString() });
+      .send({ courseId: course.id });
 
     expect(created.status).toBe(201);
     expect(created.body.enrollment.status).toBe('pending_payment');
@@ -109,42 +101,44 @@ describe.skip('enrollment + payment flow', () => {
     expect(goodVerify.status).toBe(200);
     expect(goodVerify.body.enrollment.status).toBe('active');
 
-    const stored = await EnrollmentModel.findById(enrollmentId);
+    const stored = await prisma.enrollment.findUnique({ where: { id: enrollmentId } });
     expect(stored?.status).toBe('active');
     expect(stored?.paymentRef).toBe(paymentId);
   });
 
   it('blocks a second purchase of a course the student is already active in', async () => {
-    const { email, password } = await createTestUser(Role.Student);
+    const { email, password } = await createTestUserPg(Role.Student);
     const course = await createPublishedCourse(199);
 
     const login = await request(app).post('/api/auth/login').send({ email, password });
     const token = login.body.accessToken as string;
 
-    await EnrollmentModel.create({
-      studentId: login.body.user.id,
-      courseId: course._id,
-      status: 'active',
-      paymentAmount: 199,
+    await prisma.enrollment.create({
+      data: {
+        studentId: login.body.user.id,
+        courseId: course.id,
+        status: 'active',
+        paymentAmount: 199,
+      },
     });
 
     const res = await request(app)
       .post('/api/enrollments')
       .set('Authorization', `Bearer ${token}`)
-      .send({ courseId: course._id.toString() });
+      .send({ courseId: course.id });
 
     expect(res.status).toBe(409);
   });
 
   it('rejects enrollment for a role other than student', async () => {
-    const { email, password } = await createTestUser(Role.Mentor);
+    const { email, password } = await createTestUserPg(Role.Mentor);
     const course = await createPublishedCourse(99);
     const login = await request(app).post('/api/auth/login').send({ email, password });
 
     const res = await request(app)
       .post('/api/enrollments')
       .set('Authorization', `Bearer ${login.body.accessToken}`)
-      .send({ courseId: course._id.toString() });
+      .send({ courseId: course.id });
 
     expect(res.status).toBe(403);
   });
