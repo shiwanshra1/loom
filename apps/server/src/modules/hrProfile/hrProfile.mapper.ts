@@ -1,10 +1,10 @@
 import type { HrCompanyProfileDto } from '@forge-loom/shared-types';
-import type { HrProfileDocument } from '../../models/HrProfile.js';
+import type { HrProfile } from '@prisma/client';
 
-export function toHrCompanyProfileDto(profile: HrProfileDocument): HrCompanyProfileDto {
+export function toHrCompanyProfileDto(profile: HrProfile): HrCompanyProfileDto {
   return {
     companyName: profile.companyName,
-    industry: profile.industry,
-    description: profile.companyDetails,
+    industry: profile.industry ?? undefined,
+    description: profile.companyDetails ?? undefined,
   };
 }

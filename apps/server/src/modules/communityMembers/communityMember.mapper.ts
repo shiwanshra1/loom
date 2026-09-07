@@ -3,7 +3,7 @@ import type { MemberRow } from './communityMember.service.js';
 
 export function toCommunityMemberDto(row: MemberRow): CommunityMemberDto {
   return {
-    userId: row.entry.userId.toString(),
+    userId: row.entry.userId,
     email: row.email,
     role: row.entry.role,
   };

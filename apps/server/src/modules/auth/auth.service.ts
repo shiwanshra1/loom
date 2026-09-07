@@ -1,5 +1,6 @@
 import type { Role } from '@forge-loom/shared-types';
-import { UserModel, type UserDocument } from '../../models/User.js';
+import type { Role as PrismaRole, User } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { hashPassword, comparePassword } from '../../utils/password.js';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../utils/jwt.js';
 import {
@@ -17,27 +18,27 @@ interface IssuedTokens {
   refreshToken: string;
 }
 
-async function issueTokens(user: UserDocument): Promise<IssuedTokens> {
+async function issueTokens(user: User): Promise<IssuedTokens> {
   const accessToken = signAccessToken({
-    userId: user._id.toString(),
-    role: user.role,
-    collegeId: user.collegeId?.toString(),
+    userId: user.id,
+    role: user.role as unknown as Role,
+    collegeId: user.collegeId ?? undefined,
   });
 
   const refreshToken = signRefreshToken({
-    userId: user._id.toString(),
+    userId: user.id,
     version: user.refreshTokenVersion,
   });
 
-  await storeRefreshToken(user._id.toString(), user.refreshTokenVersion, refreshToken);
+  await storeRefreshToken(user.id, user.refreshTokenVersion, refreshToken);
 
   return { accessToken, refreshToken };
 }
 
 export async function registerUser(
   input: RegisterInput
-): Promise<{ user: UserDocument; tokens: IssuedTokens }> {
-  const existing = await UserModel.findOne({ email: input.email });
+): Promise<{ user: User; tokens: IssuedTokens }> {
+  const existing = await prisma.user.findUnique({ where: { email: input.email } });
   if (existing) {
     throw new ApiError(409, 'An account with this email already exists');
   }
@@ -49,14 +50,16 @@ export async function registerUser(
   );
 
   const passwordHash = await hashPassword(input.password);
-  const user = await UserModel.create({
-    email: input.email,
-    passwordHash,
-    role: input.role,
-    collegeId,
+  const user = await prisma.user.create({
+    data: {
+      email: input.email,
+      passwordHash,
+      role: input.role as unknown as PrismaRole,
+      collegeId,
+    },
   });
 
-  await createProfileForRole(input.role as Role, user._id, input.displayName, collegeId);
+  await createProfileForRole(input.role as Role, user.id, input.displayName, collegeId);
 
   const tokens = await issueTokens(user);
   return { user, tokens };
@@ -64,8 +67,8 @@ export async function registerUser(
 
 export async function loginUser(
   input: LoginInput
-): Promise<{ user: UserDocument; tokens: IssuedTokens }> {
-  const user = await UserModel.findOne({ email: input.email });
+): Promise<{ user: User; tokens: IssuedTokens }> {
+  const user = await prisma.user.findUnique({ where: { email: input.email } });
   if (!user) {
     throw new ApiError(401, 'Invalid email or password');
   }
@@ -79,17 +82,19 @@ export async function loginUser(
     throw new ApiError(403, 'This account has been suspended');
   }
 
-  user.lastLoginAt = new Date();
-  await user.save();
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { lastLoginAt: new Date() },
+  });
 
-  const tokens = await issueTokens(user);
-  return { user, tokens };
+  const tokens = await issueTokens(updated);
+  return { user: updated, tokens };
 }
 
 export async function refreshSession(refreshToken: string): Promise<IssuedTokens> {
   const payload = verifyRefreshToken(refreshToken);
 
-  const user = await UserModel.findById(payload.userId);
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
   if (!user || user.refreshTokenVersion !== payload.version) {
     throw new ApiError(401, 'Session has been invalidated, please log in again');
   }

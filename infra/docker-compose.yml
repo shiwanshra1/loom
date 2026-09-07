@@ -1,8 +1,24 @@
 services:
+  # Kept running alongside postgres for the whole migration window (Phases 1-8)
+  # — modules not yet ported to Prisma still depend on this. Removed only in
+  # Phase 9 cleanup, once every module has been cut over.
   mongo:
     image: mongo:7
     ports: ["27017:27017"]
     volumes: ["mongo_data:/data/db"]
+  # Host port 5433 (not 5432) — this machine already has an unrelated project's
+  # Postgres container bound to 5432, and this compose file must not conflict
+  # with it or assume it can be stopped.
+  postgres:
+    image: postgres:16
+    ports: ["5433:5432"]
+    environment:
+      POSTGRES_USER: forgeloom
+      POSTGRES_PASSWORD: forgeloom
+      POSTGRES_DB: forgeloom_dev
+    volumes:
+      - "postgres_data:/var/lib/postgresql/data"
+      - "./postgres-init:/docker-entrypoint-initdb.d"
   redis:
     image: redis:7
     ports: ["6379:6379"]
@@ -17,4 +33,5 @@ services:
 
 volumes:
   mongo_data:
+  postgres_data:
   minio_data:

@@ -1,70 +1,59 @@
-import type { Types } from 'mongoose';
 import { Role } from '@forge-loom/shared-types';
-import {
-  StudentProfileModel,
-  MentorProfileModel,
-  TrainerProfileModel,
-  SpeakerProfileModel,
-  HrProfileModel,
-  SponsorProfileModel,
-  CollegeProfileModel,
-  CommunityLeaderProfileModel,
-  MediaPartnerProfileModel,
-  MemberProfileModel,
-  CourseAdminProfileModel,
-} from '../../models/index.js';
+import { prisma } from '../../config/prisma.js';
 
 /**
- * Creates the role-specific profile document on registration. `displayName` is
- * mapped to whichever field that role's schema actually requires (student name,
+ * Creates the role-specific profile row on registration. `displayName` is
+ * mapped to whichever field that role's table actually requires (student name,
  * company name, org name, ...) — roles with no required display field just get
  * an empty profile keyed by userId. `collegeId` is only meaningful (and only
  * ever passed) for the college-scoped roles — see collegeProvisioning.ts.
  */
 export async function createProfileForRole(
   role: Role,
-  userId: Types.ObjectId,
+  userId: string,
   displayName: string,
-  collegeId?: Types.ObjectId
+  collegeId?: string
 ): Promise<void> {
   switch (role) {
     case Role.Student:
-      await StudentProfileModel.create({ userId, name: displayName, collegeId });
+      await prisma.studentProfile.create({ data: { userId, name: displayName, collegeId } });
       return;
     case Role.Mentor:
-      await MentorProfileModel.create({ userId, collegeId });
+      await prisma.mentorProfile.create({ data: { userId, collegeId } });
       return;
     case Role.Trainer:
-      await TrainerProfileModel.create({ userId, collegeId });
+      await prisma.trainerProfile.create({ data: { userId, collegeId } });
       return;
     case Role.Speaker:
-      await SpeakerProfileModel.create({ userId });
+      await prisma.speakerProfile.create({ data: { userId } });
       return;
     case Role.Hr:
-      await HrProfileModel.create({ userId, companyName: displayName });
+      await prisma.hrProfile.create({ data: { userId, companyName: displayName } });
       return;
     case Role.Sponsor:
-      await SponsorProfileModel.create({ userId, orgName: displayName });
+      await prisma.sponsorProfile.create({ data: { userId, orgName: displayName } });
       return;
     case Role.CollegeAdmin:
       // collegeId is always set for this role by the time we get here — it's
       // the College this admin just founded (see collegeProvisioning.ts).
-      await CollegeProfileModel.create({ userId, collegeId: collegeId!, collegeName: displayName });
+      await prisma.collegeProfile.create({
+        data: { userId, collegeId: collegeId!, collegeName: displayName },
+      });
       return;
     case Role.CommunityLeader:
-      await CommunityLeaderProfileModel.create({ userId, orgName: displayName });
+      await prisma.communityLeaderProfile.create({ data: { userId, orgName: displayName } });
       return;
     case Role.MediaPartner:
-      await MediaPartnerProfileModel.create({ userId, outlet: displayName });
+      await prisma.mediaPartnerProfile.create({ data: { userId, outlet: displayName } });
       return;
     case Role.Member:
-      await MemberProfileModel.create({ userId });
+      await prisma.memberProfile.create({ data: { userId } });
       return;
     case Role.ForgeAdmin:
-      // No profile collection — internal superuser, never self-registered anyway.
+      // No profile table — internal superuser, never self-registered anyway.
       return;
     case Role.CourseAdmin:
-      await CourseAdminProfileModel.create({ userId, name: displayName });
+      await prisma.courseAdminProfile.create({ data: { userId, name: displayName } });
       return;
   }
 }

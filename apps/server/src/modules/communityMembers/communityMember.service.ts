@@ -1,21 +1,16 @@
-import type { HydratedDocument } from 'mongoose';
-import {
-  CommunityLeaderProfileModel,
-  type CommunityLeaderProfileDocument,
-  type CommunityMemberEntry,
-} from '../../models/CommunityLeaderProfile.js';
-import { UserModel } from '../../models/User.js';
+import type { CommunityMember } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { InviteCommunityMemberInput } from './communityMember.validation.js';
 
-async function getOwnProfile(
-  leaderUserId: string
-): Promise<HydratedDocument<CommunityLeaderProfileDocument>> {
-  const profile = await CommunityLeaderProfileModel.findOne({ userId: leaderUserId });
+async function getOwnProfileId(leaderUserId: string): Promise<string> {
+  const profile = await prisma.communityLeaderProfile.findUnique({
+    where: { userId: leaderUserId },
+  });
   if (!profile) {
     throw new ApiError(404, 'Community leader profile not found');
   }
-  return profile;
+  return profile.id;
 }
 
 // No email-invite infra exists in this roadmap — this adds an existing
@@ -23,35 +18,38 @@ async function getOwnProfile(
 export async function addMember(
   leaderUserId: string,
   input: InviteCommunityMemberInput
-): Promise<CommunityMemberEntry[]> {
-  const invitee = await UserModel.findOne({ email: input.email });
+): Promise<CommunityMember[]> {
+  const invitee = await prisma.user.findUnique({ where: { email: input.email } });
   if (!invitee) {
     throw new ApiError(404, `No account found for ${input.email}`);
   }
 
-  const profile = await getOwnProfile(leaderUserId);
-  const existing = profile.members.find((m) => m.userId.toString() === invitee._id.toString());
-  if (existing) {
-    existing.role = input.role ?? existing.role;
-  } else {
-    profile.members.push({ userId: invitee._id, role: input.role ?? 'public' });
-  }
-  await profile.save();
-  return profile.members;
+  const communityLeaderProfileId = await getOwnProfileId(leaderUserId);
+
+  await prisma.communityMember.upsert({
+    where: { communityLeaderProfileId_userId: { communityLeaderProfileId, userId: invitee.id } },
+    update: { role: input.role ?? 'public' },
+    create: { communityLeaderProfileId, userId: invitee.id, role: input.role ?? 'public' },
+  });
+
+  return prisma.communityMember.findMany({ where: { communityLeaderProfileId } });
 }
 
 export interface MemberRow {
-  entry: CommunityMemberEntry;
+  entry: CommunityMember;
   email: string;
 }
 
 export async function listMembers(leaderUserId: string): Promise<MemberRow[]> {
-  const profile = await getOwnProfile(leaderUserId);
-  const users = await UserModel.find({ _id: { $in: profile.members.map((m) => m.userId) } });
-  const emailByUserId = new Map(users.map((u) => [u._id.toString(), u.email]));
+  const communityLeaderProfileId = await getOwnProfileId(leaderUserId);
+  const members = await prisma.communityMember.findMany({ where: { communityLeaderProfileId } });
+  const users = await prisma.user.findMany({
+    where: { id: { in: members.map((m) => m.userId) } },
+  });
+  const emailByUserId = new Map(users.map((u) => [u.id, u.email]));
 
-  return profile.members.map((entry) => ({
+  return members.map((entry) => ({
     entry,
-    email: emailByUserId.get(entry.userId.toString()) ?? '',
+    email: emailByUserId.get(entry.userId) ?? '',
   }));
 }

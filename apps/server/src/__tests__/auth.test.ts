@@ -2,16 +2,21 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { Role } from '@forge-loom/shared-types';
 import { buildApp, connectDb, disconnectDb, uniqueEmail } from './helpers.js';
-import { UserModel } from '../models/User.js';
+import { prisma, connectPrisma, disconnectPrisma } from '../config/prisma.js';
 
 const app = buildApp();
 
 beforeAll(async () => {
+  // Mongo connection stays required at app boot even though auth itself is
+  // Postgres-backed now — every not-yet-migrated route on this same Express
+  // app still expects it.
   await connectDb();
+  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
+  await disconnectPrisma();
 });
 
 describe('auth flow', () => {
@@ -59,13 +64,13 @@ describe('auth flow', () => {
   });
 
   it('blocks login for a suspended account', async () => {
-    await UserModel.updateOne({ email }, { status: 'suspended' });
+    await prisma.user.update({ where: { email }, data: { status: 'suspended' } });
 
     const res = await request(app).post('/api/auth/login').send({ email, password });
 
     expect(res.status).toBe(403);
 
-    await UserModel.updateOne({ email }, { status: 'active' });
+    await prisma.user.update({ where: { email }, data: { status: 'active' } });
   });
 
   it('rejects /me without a token', async () => {

@@ -1,7 +1,5 @@
-import type { Types } from 'mongoose';
 import { Role } from '@forge-loom/shared-types';
-import { connectDb, disconnectDb } from '../config/db.js';
-import { UserModel } from '../models/User.js';
+import { prisma, connectPrisma, disconnectPrisma } from '../config/prisma.js';
 import { hashPassword } from '../utils/password.js';
 import { createProfileForRole } from '../modules/auth/profileFactory.js';
 import { resolveCollegeIdForRegistration } from '../modules/auth/collegeProvisioning.js';
@@ -15,6 +13,10 @@ interface SeedAccount {
 // Dev-only fixtures: one account per role for manually testing the app without
 // filling out the register form 11 times. Re-running this script is safe —
 // existing emails are skipped, not duplicated.
+//
+// Seeds directly into Postgres via Prisma — this covers only the Phase 1
+// (identity/college) domain, which is this script's entire current scope.
+// Course/Citadel/etc. seeding doesn't exist here yet and isn't affected.
 const SEED_PASSWORD = 'test1234';
 
 const SEED_ACCOUNTS: SeedAccount[] = [
@@ -64,20 +66,22 @@ const COLLEGE_CLUSTERS: CollegeCluster[] = [
 ];
 
 async function seedPlainAccount(account: SeedAccount): Promise<void> {
-  const existing = await UserModel.findOne({ email: account.email });
+  const existing = await prisma.user.findUnique({ where: { email: account.email } });
   if (existing) {
     console.log(`skip   ${account.email} (already exists)`);
     return;
   }
 
   const passwordHash = await hashPassword(SEED_PASSWORD);
-  const user = await UserModel.create({ email: account.email, passwordHash, role: account.role });
-  await createProfileForRole(account.role, user._id, account.displayName);
+  const user = await prisma.user.create({
+    data: { email: account.email, passwordHash, role: account.role },
+  });
+  await createProfileForRole(account.role, user.id, account.displayName);
   console.log(`create ${account.email} (${account.role})`);
 }
 
-async function seedCollegeAdmin(account: SeedAccount): Promise<Types.ObjectId> {
-  const existing = await UserModel.findOne({ email: account.email });
+async function seedCollegeAdmin(account: SeedAccount): Promise<string> {
+  const existing = await prisma.user.findUnique({ where: { email: account.email } });
   if (existing) {
     console.log(`skip   ${account.email} (already exists)`);
     if (!existing.collegeId) {
@@ -92,40 +96,31 @@ async function seedCollegeAdmin(account: SeedAccount): Promise<Types.ObjectId> {
   }
 
   const passwordHash = await hashPassword(SEED_PASSWORD);
-  const user = await UserModel.create({
-    email: account.email,
-    passwordHash,
-    role: account.role,
-    collegeId,
+  const user = await prisma.user.create({
+    data: { email: account.email, passwordHash, role: account.role, collegeId },
   });
-  await createProfileForRole(account.role, user._id, account.displayName, collegeId);
+  await createProfileForRole(account.role, user.id, account.displayName, collegeId);
   console.log(`create ${account.email} (${account.role}, founded a new College)`);
   return collegeId;
 }
 
-async function seedCollegeScopedAccount(
-  account: SeedAccount,
-  collegeId: Types.ObjectId
-): Promise<void> {
-  const existing = await UserModel.findOne({ email: account.email });
+async function seedCollegeScopedAccount(account: SeedAccount, collegeId: string): Promise<void> {
+  const existing = await prisma.user.findUnique({ where: { email: account.email } });
   if (existing) {
     console.log(`skip   ${account.email} (already exists)`);
     return;
   }
 
   const passwordHash = await hashPassword(SEED_PASSWORD);
-  const user = await UserModel.create({
-    email: account.email,
-    passwordHash,
-    role: account.role,
-    collegeId,
+  const user = await prisma.user.create({
+    data: { email: account.email, passwordHash, role: account.role, collegeId },
   });
-  await createProfileForRole(account.role, user._id, account.displayName, collegeId);
+  await createProfileForRole(account.role, user.id, account.displayName, collegeId);
   console.log(`create ${account.email} (${account.role})`);
 }
 
 async function seed(): Promise<void> {
-  await connectDb();
+  await connectPrisma();
 
   for (const account of SEED_ACCOUNTS) {
     await seedPlainAccount(account);
@@ -139,7 +134,7 @@ async function seed(): Promise<void> {
   }
 
   console.log(`\nAll seed accounts use the password: ${SEED_PASSWORD}`);
-  await disconnectDb();
+  await disconnectPrisma();
 }
 
 seed()

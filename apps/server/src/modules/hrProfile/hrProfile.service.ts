@@ -1,11 +1,10 @@
-import type { HydratedDocument } from 'mongoose';
-import { HrProfileModel, type HrProfileDocument } from '../../models/HrProfile.js';
-import { UserModel } from '../../models/User.js';
+import type { HrProfile } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { UpdateHrProfileInput } from './hrProfile.validation.js';
 
-export async function getMyProfile(userId: string): Promise<HydratedDocument<HrProfileDocument>> {
-  const profile = await HrProfileModel.findOne({ userId });
+export async function getMyProfile(userId: string): Promise<HrProfile> {
+  const profile = await prisma.hrProfile.findUnique({ where: { userId } });
   if (!profile) {
     throw new ApiError(404, 'HR profile not found');
   }
@@ -15,13 +14,16 @@ export async function getMyProfile(userId: string): Promise<HydratedDocument<HrP
 export async function updateMyProfile(
   userId: string,
   input: UpdateHrProfileInput
-): Promise<HydratedDocument<HrProfileDocument>> {
-  const profile = await getMyProfile(userId);
-  if (input.companyName !== undefined) profile.companyName = input.companyName;
-  if (input.industry !== undefined) profile.industry = input.industry;
-  if (input.companyDetails !== undefined) profile.companyDetails = input.companyDetails;
-  await profile.save();
-  return profile;
+): Promise<HrProfile> {
+  await getMyProfile(userId);
+  return prisma.hrProfile.update({
+    where: { userId },
+    data: {
+      ...(input.companyName !== undefined && { companyName: input.companyName }),
+      ...(input.industry !== undefined && { industry: input.industry }),
+      ...(input.companyDetails !== undefined && { companyDetails: input.companyDetails }),
+    },
+  });
 }
 
 export interface HrDirectoryEntry {
@@ -30,12 +32,14 @@ export interface HrDirectoryEntry {
 }
 
 export async function listDirectory(): Promise<HrDirectoryEntry[]> {
-  const profiles = await HrProfileModel.find();
-  const users = await UserModel.find({ _id: { $in: profiles.map((p) => p.userId) } });
-  const emailByUserId = new Map(users.map((u) => [u._id.toString(), u.email]));
+  const profiles = await prisma.hrProfile.findMany();
+  const users = await prisma.user.findMany({
+    where: { id: { in: profiles.map((p) => p.userId) } },
+  });
+  const emailByUserId = new Map(users.map((u) => [u.id, u.email]));
 
   return profiles.map((profile) => ({
     companyName: profile.companyName,
-    contactEmail: emailByUserId.get(profile.userId.toString()) ?? '',
+    contactEmail: emailByUserId.get(profile.userId) ?? '',
   }));
 }

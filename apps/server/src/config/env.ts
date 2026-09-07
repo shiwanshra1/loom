@@ -20,7 +20,12 @@ function required(name: string): string {
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: Number(process.env.PORT ?? 4000),
+  // Both required through the Mongo->Postgres migration window (see
+  // docs/prisma-migration-tickets.md): modules land on Prisma/`databaseUrl`
+  // one at a time while everything not yet migrated still needs `mongoUri`.
+  // `mongoUri` is removed only in Phase 9, once nothing references it.
   mongoUri: required('MONGO_URI'),
+  databaseUrl: required('DATABASE_URL'),
   redisUrl: required('REDIS_URL'),
   jwt: {
     accessSecret: required('JWT_ACCESS_SECRET'),

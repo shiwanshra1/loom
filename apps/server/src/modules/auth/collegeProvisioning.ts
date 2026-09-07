@@ -1,6 +1,5 @@
-import type { Types } from 'mongoose';
 import { COLLEGE_SCOPED_ROLES, Role } from '@forge-loom/shared-types';
-import { CollegeModel } from '../../models/College.js';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 
 /**
@@ -17,21 +16,23 @@ export async function resolveCollegeIdForRegistration(
   role: Role,
   displayName: string,
   providedCollegeId?: string
-): Promise<Types.ObjectId | undefined> {
+): Promise<string | undefined> {
   if (role === Role.CollegeAdmin) {
-    const college = await CollegeModel.create({ name: displayName, partnerTier: 'bronze' });
-    return college._id;
+    const college = await prisma.college.create({
+      data: { name: displayName, partnerTier: 'bronze' },
+    });
+    return college.id;
   }
 
   if (COLLEGE_SCOPED_ROLES.includes(role)) {
     if (!providedCollegeId) {
       throw new ApiError(400, 'collegeId is required for this role');
     }
-    const college = await CollegeModel.findById(providedCollegeId);
+    const college = await prisma.college.findUnique({ where: { id: providedCollegeId } });
     if (!college) {
       throw new ApiError(400, 'No college found for the given collegeId');
     }
-    return college._id;
+    return college.id;
   }
 
   return undefined;

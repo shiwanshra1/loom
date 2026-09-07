@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { PrismaClient } from '@prisma/client';
 
 // Runs once before the whole suite, in a separate process from the test
 // files themselves (vitest's globalSetup contract) — drops the dedicated
@@ -21,4 +22,43 @@ export default async function setup() {
   const connection = await mongoose.createConnection(uri).asPromise();
   await connection.dropDatabase();
   await connection.close();
+
+  await resetPostgres();
+}
+
+// Scoped truncate covering only the tables Phase 1 (identity/colleges) writes
+// to — a deliberately narrow preview of Phase 7's real work, which will
+// generalize this to every table by reading `information_schema.tables`
+// instead of a hardcoded list. Extend this list as each further phase lands,
+// not all at once now.
+const PHASE_1_TABLES = [
+  'User',
+  'StudentProfile',
+  'MentorProfile',
+  'TrainerProfile',
+  'SpeakerProfile',
+  'HrProfile',
+  'SponsorProfile',
+  'CollegeProfile',
+  'CommunityLeaderProfile',
+  'CommunityMember',
+  'CommunityVolunteer',
+  'MediaPartnerProfile',
+  'MemberProfile',
+  'CourseAdminProfile',
+  'College',
+];
+
+async function resetPostgres() {
+  const url = process.env.DATABASE_URL;
+  if (!url || !url.includes('forgeloom_test')) {
+    throw new Error(
+      `Refusing to run tests: DATABASE_URL does not point at forgeloom_test (got: ${url})`
+    );
+  }
+
+  const prisma = new PrismaClient();
+  const tableList = PHASE_1_TABLES.map((t) => `"${t}"`).join(', ');
+  await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tableList} RESTART IDENTITY CASCADE;`);
+  await prisma.$disconnect();
 }

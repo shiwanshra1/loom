@@ -3,7 +3,7 @@ import { registerSchema, loginSchema } from './auth.validation.js';
 import { registerUser, loginUser, refreshSession, logoutUser } from './auth.service.js';
 import { toPublicUser } from './auth.mapper.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { UserModel } from '../../models/User.js';
+import { prisma } from '../../config/prisma.js';
 import { env } from '../../config/env.js';
 
 const REFRESH_COOKIE = 'forgeloom_refresh';
@@ -44,9 +44,9 @@ export async function refresh(req: Request, res: Response): Promise<void> {
 
 export async function logout(req: Request, res: Response): Promise<void> {
   if (req.user) {
-    const user = await UserModel.findById(req.user.userId);
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
     if (user) {
-      await logoutUser(user._id.toString(), user.refreshTokenVersion);
+      await logoutUser(user.id, user.refreshTokenVersion);
     }
   }
 
@@ -59,7 +59,7 @@ export async function me(req: Request, res: Response): Promise<void> {
     throw new ApiError(401, 'Not authenticated');
   }
 
-  const user = await UserModel.findById(req.user.userId);
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
   if (!user) {
     throw new ApiError(404, 'User not found');
   }

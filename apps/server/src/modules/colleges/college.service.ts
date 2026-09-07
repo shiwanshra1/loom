@@ -1,28 +1,42 @@
+import mongoose from 'mongoose';
 import {
   Role,
   type CollegeFacultyMemberDto,
   type CollegeProgramDto,
 } from '@forge-loom/shared-types';
-import { CollegeModel, type CollegeDocument } from '../../models/College.js';
-import { StudentProfileModel } from '../../models/StudentProfile.js';
-import { TrainerProfileModel } from '../../models/TrainerProfile.js';
-import { MentorProfileModel } from '../../models/MentorProfile.js';
+import type { College } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { EnrollmentModel } from '../../models/Enrollment.js';
 import { CourseModel } from '../../models/Course.js';
-import { UserModel } from '../../models/User.js';
 import { CohortModel } from '../../models/Cohort.js';
+import { TeamModel } from '../../models/Team.js';
 import type { CreateCollegeInput } from './college.validation.js';
 
-export async function createCollege(input: CreateCollegeInput): Promise<CollegeDocument> {
-  return CollegeModel.create({
-    name: input.name,
-    location: input.location,
-    partnerTier: input.partnerTier ?? 'bronze',
+export async function createCollege(input: CreateCollegeInput): Promise<College> {
+  return prisma.college.create({
+    data: {
+      name: input.name,
+      location: input.location,
+      partnerTier: input.partnerTier ?? 'bronze',
+    },
   });
 }
 
-export async function listColleges(): Promise<CollegeDocument[]> {
-  return CollegeModel.find().sort({ name: 1 });
+export async function listColleges(): Promise<College[]> {
+  return prisma.college.findMany({ orderBy: { name: 'asc' } });
+}
+
+// Legacy Mongo collections (Enrollment/Course/Cohort — not migrated until
+// Phases 2/6) still key everything off Mongo ObjectId-shaped ids. A college
+// or student created after the Phase 1 cutover has a Prisma cuid id, which
+// is not valid ObjectId hex — passing one into a Mongoose `$in` filter
+// throws a CastError for the whole query, not just a no-match. Filtering
+// down to valid-looking ids first means "no legacy data for this new
+// record" resolves to an empty/zero result instead of an exception. This
+// gap closes on its own as each domain migrates, and fully once Phase 8's
+// data migration runs.
+function keepValidObjectIds(ids: string[]): string[] {
+  return ids.filter((id) => mongoose.isValidObjectId(id));
 }
 
 // "Programs" for a college isn't a stored field anywhere — courses are a
@@ -32,9 +46,11 @@ export async function listColleges(): Promise<CollegeDocument[]> {
 // retrofitting a collegeId onto Course (which would contradict the open
 // catalog model Phases 1-2 already shipped).
 export async function getCollegePrograms(collegeId: string): Promise<CollegeProgramDto[]> {
-  const students = await StudentProfileModel.find({ collegeId });
+  const students = await prisma.studentProfile.findMany({ where: { collegeId } });
+  const studentUserIds = keepValidObjectIds(students.map((s) => s.userId));
+
   const enrollments = await EnrollmentModel.find({
-    studentId: { $in: students.map((s) => s.userId) },
+    studentId: { $in: studentUserIds },
     status: { $in: ['active', 'completed'] },
   });
 
@@ -54,7 +70,7 @@ export async function getCollegePrograms(collegeId: string): Promise<CollegeProg
 }
 
 export interface PartnerCollegeRow {
-  college: CollegeDocument;
+  college: College;
   studentCount: number;
   activePhase: 'activation' | 'bootcamp' | 'citadel' | null;
   contactEmail: string | null;
@@ -64,20 +80,22 @@ export interface PartnerCollegeRow {
 // college's most recently started cohort rather than trying to define a
 // single canonical "current" cohort, since the schema doesn't mark one.
 export async function listPartnerColleges(): Promise<PartnerCollegeRow[]> {
-  const colleges = await CollegeModel.find().sort({ name: 1 });
-  const collegeIds = colleges.map((c) => c._id);
+  const colleges = await prisma.college.findMany({ orderBy: { name: 'asc' } });
+  const collegeIds = colleges.map((c) => c.id);
+  const legacyCollegeIds = keepValidObjectIds(collegeIds);
 
   const [studentCounts, latestCohorts, collegeAdmins] = await Promise.all([
-    StudentProfileModel.aggregate<{ _id: string; count: number }>([
-      { $match: { collegeId: { $in: collegeIds } } },
-      { $group: { _id: '$collegeId', count: { $sum: 1 } } },
-    ]),
-    CohortModel.find({ collegeId: { $in: collegeIds } }).sort({ startDate: -1 }),
-    UserModel.find({ role: Role.CollegeAdmin, collegeId: { $in: collegeIds } }),
+    prisma.studentProfile.groupBy({
+      by: ['collegeId'],
+      where: { collegeId: { in: collegeIds } },
+      _count: { _all: true },
+    }),
+    CohortModel.find({ collegeId: { $in: legacyCollegeIds } }).sort({ startDate: -1 }),
+    prisma.user.findMany({ where: { role: Role.CollegeAdmin, collegeId: { in: collegeIds } } }),
   ]);
 
   const studentCountByCollege = new Map(
-    studentCounts.map((row) => [row._id.toString(), row.count])
+    studentCounts.map((row) => [row.collegeId as string, row._count._all])
   );
   const latestPhaseByCollege = new Map<string, 'activation' | 'bootcamp' | 'citadel'>();
   for (const cohort of latestCohorts) {
@@ -87,38 +105,56 @@ export async function listPartnerColleges(): Promise<PartnerCollegeRow[]> {
     }
   }
   const contactEmailByCollege = new Map(
-    collegeAdmins.map((admin) => [admin.collegeId!.toString(), admin.email])
+    collegeAdmins.filter((admin) => admin.collegeId).map((admin) => [admin.collegeId!, admin.email])
   );
 
   return colleges.map((college) => ({
     college,
-    studentCount: studentCountByCollege.get(college._id.toString()) ?? 0,
-    activePhase: latestPhaseByCollege.get(college._id.toString()) ?? null,
-    contactEmail: contactEmailByCollege.get(college._id.toString()) ?? null,
+    studentCount: studentCountByCollege.get(college.id) ?? 0,
+    activePhase: latestPhaseByCollege.get(college.id) ?? null,
+    contactEmail: contactEmailByCollege.get(college.id) ?? null,
   }));
+}
+
+// Team hasn't moved to Prisma yet (Citadel is Phase 3) — until it does, a
+// trainer registered after the Phase 1 cutover has a Prisma cuid id that can
+// never match a legacy Team document (not valid ObjectId hex), so the Mongo
+// count is skipped for those rather than left to throw.
+async function countTeamsForTrainer(trainerUserId: string): Promise<number> {
+  if (!mongoose.isValidObjectId(trainerUserId)) {
+    return 0;
+  }
+  return TeamModel.countDocuments({ trainerId: trainerUserId });
 }
 
 export async function getCollegeFaculty(collegeId: string): Promise<CollegeFacultyMemberDto[]> {
   const [trainers, mentors] = await Promise.all([
-    TrainerProfileModel.find({ collegeId }),
-    MentorProfileModel.find({ collegeId }),
+    prisma.trainerProfile.findMany({ where: { collegeId } }),
+    prisma.mentorProfile.findMany({ where: { collegeId } }),
   ]);
   const userIds = [...trainers.map((t) => t.userId), ...mentors.map((m) => m.userId)];
-  const users = await UserModel.find({ _id: { $in: userIds } });
-  const emailByUserId = new Map(users.map((u) => [u._id.toString(), u.email]));
+  const users = await prisma.user.findMany({ where: { id: { in: userIds } } });
+  const emailByUserId = new Map(users.map((u) => [u.id, u.email]));
+
+  const trainerWorkloads = await Promise.all(
+    trainers.map((t) => countTeamsForTrainer(t.userId))
+  );
+  const mentorWorkloads = await Promise.all(
+    mentors.map((m) => prisma.studentProfile.count({ where: { mentorId: m.id } }))
+  );
 
   return [
-    ...trainers.map((t) => ({
-      userId: t.userId.toString(),
-      email: emailByUserId.get(t.userId.toString()) ?? '',
+    ...trainers.map((t, i) => ({
+      userId: t.userId,
+      email: emailByUserId.get(t.userId) ?? '',
       role: 'trainer' as const,
-      workload: t.assignedTeams.length,
+      workload: trainerWorkloads[i] ?? 0,
     })),
-    ...mentors.map((m) => ({
-      userId: m.userId.toString(),
-      email: emailByUserId.get(m.userId.toString()) ?? '',
+    ...mentors.map((m, i) => ({
+      userId: m.userId,
+      email: emailByUserId.get(m.userId) ?? '',
       role: 'mentor' as const,
-      workload: m.assignedStudents.length,
+      workload: mentorWorkloads[i] ?? 0,
     })),
   ];
 }
