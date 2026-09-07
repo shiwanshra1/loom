@@ -1,12 +1,13 @@
-import type { AdminUserRowDto } from '@forge-loom/shared-types';
+import type { AdminUserRowDto, Role, UserStatus } from '@forge-loom/shared-types';
+import { fromPrismaEnum } from '../../utils/prismaEnum.js';
 import type { UserRow } from './admin.service.js';
 
 export function toAdminUserRowDto(row: UserRow): AdminUserRowDto {
   return {
-    id: row.user._id.toString(),
+    id: row.user.id,
     email: row.user.email,
-    role: row.user.role,
+    role: fromPrismaEnum<Role>(row.user.role),
     collegeName: row.collegeName,
-    status: row.user.status,
+    status: fromPrismaEnum<UserStatus>(row.user.status),
   };
 }

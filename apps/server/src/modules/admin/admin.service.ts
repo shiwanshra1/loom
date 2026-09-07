@@ -1,8 +1,5 @@
-import type { HydratedDocument } from 'mongoose';
-import { UserModel, type UserDocument } from '../../models/User.js';
-import { CollegeModel } from '../../models/College.js';
-import { StudentProfileModel } from '../../models/StudentProfile.js';
-import { InvestorAccessGrantModel } from '../../models/InvestorAccessGrant.js';
+import type { User } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { UpdateUserStatusInput } from './admin.validation.js';
 
@@ -18,40 +15,40 @@ export interface NationalStats {
 
 export async function getNationalStats(): Promise<NationalStats> {
   const [totalColleges, totalStudents, venturesLaunched] = await Promise.all([
-    CollegeModel.countDocuments(),
-    StudentProfileModel.countDocuments(),
-    InvestorAccessGrantModel.countDocuments(),
+    prisma.college.count(),
+    prisma.studentProfile.count(),
+    prisma.investorAccessGrant.count(),
   ]);
 
   return { totalColleges, totalStudents, venturesLaunched, employabilityLiftPercent: null };
 }
 
 export interface UserRow {
-  user: UserDocument;
+  user: User;
   collegeName: string | null;
 }
 
 export async function listUsers(): Promise<UserRow[]> {
-  const users = await UserModel.find().sort({ createdAt: -1 });
-  const collegeIds = [...new Set(users.map((u) => u.collegeId?.toString()).filter(Boolean))];
-  const colleges = await CollegeModel.find({ _id: { $in: collegeIds } });
-  const nameByCollegeId = new Map(colleges.map((c) => [c._id.toString(), c.name]));
+  const users = await prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
+  const collegeIds = [
+    ...new Set(users.map((u) => u.collegeId).filter((id): id is string => Boolean(id))),
+  ];
+  const colleges = await prisma.college.findMany({ where: { id: { in: collegeIds } } });
+  const nameByCollegeId = new Map(colleges.map((c) => [c.id, c.name]));
 
   return users.map((user) => ({
     user,
-    collegeName: user.collegeId ? (nameByCollegeId.get(user.collegeId.toString()) ?? null) : null,
+    collegeName: user.collegeId ? (nameByCollegeId.get(user.collegeId) ?? null) : null,
   }));
 }
 
 export async function updateUserStatus(
   userId: string,
   input: UpdateUserStatusInput
-): Promise<HydratedDocument<UserDocument>> {
-  const user = await UserModel.findById(userId);
+): Promise<User> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new ApiError(404, 'User not found');
   }
-  user.status = input.status;
-  await user.save();
-  return user;
+  return prisma.user.update({ where: { id: userId }, data: { status: input.status } });
 }

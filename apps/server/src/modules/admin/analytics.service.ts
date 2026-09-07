@@ -3,13 +3,7 @@ import type {
   AttendanceTrendPointDto,
   ScoreDistributionBucketDto,
 } from '@forge-loom/shared-types';
-import { EnrollmentModel } from '../../models/Enrollment.js';
-import { AttendanceRecordModel } from '../../models/AttendanceRecord.js';
-import { StudentProfileModel } from '../../models/StudentProfile.js';
-import { InterestExpressionModel } from '../../models/InterestExpression.js';
-import { TeamModel } from '../../models/Team.js';
-import { SprintModel } from '../../models/Sprint.js';
-import { InvestorAccessGrantModel } from '../../models/InvestorAccessGrant.js';
+import { prisma } from '../../config/prisma.js';
 
 const ATTENDANCE_TREND_DAYS = 7;
 const SCORE_BUCKETS = [
@@ -22,15 +16,15 @@ const SCORE_BUCKETS = [
 
 async function getCourseCompletionRate(): Promise<number> {
   const [completed, active] = await Promise.all([
-    EnrollmentModel.countDocuments({ status: 'completed' }),
-    EnrollmentModel.countDocuments({ status: 'active' }),
+    prisma.enrollment.count({ where: { status: 'completed' } }),
+    prisma.enrollment.count({ where: { status: 'active' } }),
   ]);
   const total = completed + active;
   return total === 0 ? 0 : Math.round((completed / total) * 100);
 }
 
 async function getScoreDistribution(): Promise<ScoreDistributionBucketDto[]> {
-  const students = await StudentProfileModel.find().select('builderScore');
+  const students = await prisma.studentProfile.findMany({ select: { builderScore: true } });
   return SCORE_BUCKETS.map((bucket) => ({
     label: bucket.label,
     count: students.filter((s) => s.builderScore >= bucket.min && s.builderScore < bucket.max)
@@ -45,9 +39,10 @@ async function getAttendanceTrend(): Promise<AttendanceTrendPointDto[]> {
   since.setDate(since.getDate() - (ATTENDANCE_TREND_DAYS - 1));
   since.setHours(0, 0, 0, 0);
 
-  const records = await AttendanceRecordModel.find({ markedAt: { $gte: since } }).select(
-    'status markedAt'
-  );
+  const records = await prisma.attendanceRecord.findMany({
+    where: { markedAt: { gte: since } },
+    select: { status: true, markedAt: true },
+  });
 
   const points: AttendanceTrendPointDto[] = [];
   for (let i = 0; i < ATTENDANCE_TREND_DAYS; i++) {
@@ -69,13 +64,18 @@ async function getAttendanceTrend(): Promise<AttendanceTrendPointDto[]> {
 }
 
 async function getCitadelFunnel() {
-  const [interested, teamsFormed, sprintsCompleted, investorGranted] = await Promise.all([
-    InterestExpressionModel.distinct('userId').then((ids) => ids.length),
-    TeamModel.countDocuments({ problemStatementId: { $ne: null } }),
-    SprintModel.countDocuments({ status: 'complete' }),
-    InvestorAccessGrantModel.countDocuments(),
+  const [interestedRows, teamsFormed, sprintsCompleted, investorGranted] = await Promise.all([
+    prisma.interestExpression.findMany({ distinct: ['userId'], select: { userId: true } }),
+    prisma.team.count({ where: { problemStatementId: { not: null } } }),
+    prisma.sprint.count({ where: { status: 'complete' } }),
+    prisma.investorAccessGrant.count(),
   ]);
-  return { interested, teamsFormed, sprintsCompleted, investorGranted };
+  return {
+    interested: interestedRows.length,
+    teamsFormed,
+    sprintsCompleted,
+    investorGranted,
+  };
 }
 
 export async function getAnalytics(): Promise<AnalyticsDto> {

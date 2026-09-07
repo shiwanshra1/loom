@@ -95,13 +95,14 @@ Files: `apps/server/src/modules/bookings/*.ts`, `notifications/*.ts`, `community
 
 ---
 
-## Phase 6 — Admin/Dormant + remaining models
+## Phase 6 — Admin/Dormant + remaining models — ✅ DONE (2026-09-07) — last functional phase
 
 Files: `apps/server/src/modules/admin/*.ts`.
 
-- [ ] **T6.1** Delete `Placement.ts` model — no service/controller/route references it; the Prisma table exists but nothing calls `prisma.placement.*` yet (matches today's dormant state exactly).
-- [ ] **T6.2** `admin.service.ts` (national-stats/analytics/users): the on-the-fly aggregates across `User`/`StudentProfile`/`Enrollment`/`Cohort`/`College` (no dedicated Admin collection today) become Prisma `count`/`aggregate`/`groupBy` calls; any `InterestExpressionModel.distinct('userId')`-style call becomes `prisma.interestExpression.findMany({ distinct: ['userId'], select: { userId: true } })`.
-- **Checkpoint**: live curl smoke-test of `GET /admin/national-stats`, `GET /admin/analytics`, `GET /admin/users`, `PATCH /admin/users/:id/status` against Postgres.
+- [x] **T6.1 — correction, same pattern as every prior phase**: did not delete `Placement.ts` — deferred to Phase 9. Reconfirmed it's still fully dormant (only self-referenced in its own model file, zero controllers/services touch it).
+- [x] **T6.2** All of `admin.service.ts` (national stats, user listing, status updates) and `analytics.service.ts` (course completion rate, score distribution, attendance trend, Citadel funnel) ported to Prisma exactly as ticketed — every single model this phase touches (`User`, `College`, `StudentProfile`, `Enrollment`, `AttendanceRecord`, `InterestExpression`, `Team`, `Sprint`, `InvestorAccessGrant`) was already migrated in Phases 1-5, so this was a clean, self-contained swap with no new cross-domain gaps — the first phase where that's been true. `InterestExpressionModel.distinct('userId')` → `prisma.interestExpression.findMany({distinct:['userId'], select:{userId:true}})`, exactly as the ticket suggested.
+- **Checkpoint — met, and this is the headline result of the whole phase**: live curl smoke-test of all 4 admin endpoints against Postgres. `GET /admin/national-stats` returned **real, correct counts reflecting actual accumulated activity from every prior phase's live testing** (`totalColleges:2, totalStudents:2, venturesLaunched:1`) — before this phase, this endpoint had been silently reading a Mongo collection that received zero writes since Phase 1's cutover, so it would have shown stale zeros indefinitely no matter how much real Postgres activity happened. `GET /admin/analytics` returned a score distribution and Citadel funnel that **exactly matched the live test data accumulated across Phases 2-5** (`scoreDistribution` showing one student at 0 and one at the Phase 4 test's 43; `citadelFunnel: {interested:1, teamsFormed:2, sprintsCompleted:4, investorGranted:1}` — precisely the two teams and four completed sprint cycles created across Phase 3's and Phase 4's live tests). `GET /admin/users` correctly joined college names across both seeded college clusters. `PATCH /admin/users/:id/status` genuinely suspended `student1` (confirmed real login blocking with a 403) and reinstated them (confirmed login works again) — a real functional test, not just a status-field check.
+- **This closes the demo-readiness gap flagged to the user at the start of Phase 4**: every backend module is now on Prisma; no "accept the gap" guard is silently skipping anything for a current account anywhere in the app. Phases 7-10 (test harness generalization, historical data migration, cleanup, frontend verification) don't add or fix functionality — a fresh account can now click through all 11 roles' features without hitting a known dead end.
 
 ---
 
