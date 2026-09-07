@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { Role } from '@forge-loom/shared-types';
-import { buildApp, connectDb, disconnectDb, connectPrisma, disconnectPrisma, createTestUserPg } from './helpers.js';
+import { buildApp, connectDb, disconnectDb, createTestUser } from './helpers.js';
 import { prisma } from '../config/prisma.js';
 
 // The only network call in the create-enrollment path is the outbound
@@ -27,16 +27,14 @@ const app = buildApp();
 
 beforeAll(async () => {
   await connectDb();
-  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
-  await disconnectPrisma();
 });
 
 async function createPublishedCourse(price: number) {
-  const { user: adminUser } = await createTestUserPg(Role.CourseAdmin);
+  const { user: adminUser } = await createTestUser(Role.CourseAdmin);
   const adminProfile = await prisma.courseAdminProfile.create({
     data: { userId: adminUser.id, name: 'Test Course Admin' },
   });
@@ -55,7 +53,7 @@ async function createPublishedCourse(price: number) {
 
 describe('enrollment + payment flow', () => {
   it('creates a pending enrollment with a real Razorpay order id, then verifies payment with a correctly-computed signature', async () => {
-    const { email, password } = await createTestUserPg(Role.Student);
+    const { email, password } = await createTestUser(Role.Student);
     const course = await createPublishedCourse(499);
 
     const login = await request(app).post('/api/auth/login').send({ email, password });
@@ -107,7 +105,7 @@ describe('enrollment + payment flow', () => {
   });
 
   it('blocks a second purchase of a course the student is already active in', async () => {
-    const { email, password } = await createTestUserPg(Role.Student);
+    const { email, password } = await createTestUser(Role.Student);
     const course = await createPublishedCourse(199);
 
     const login = await request(app).post('/api/auth/login').send({ email, password });
@@ -131,7 +129,7 @@ describe('enrollment + payment flow', () => {
   });
 
   it('rejects enrollment for a role other than student', async () => {
-    const { email, password } = await createTestUserPg(Role.Mentor);
+    const { email, password } = await createTestUser(Role.Mentor);
     const course = await createPublishedCourse(99);
     const login = await request(app).post('/api/auth/login').send({ email, password });
 

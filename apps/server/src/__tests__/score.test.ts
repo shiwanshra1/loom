@@ -1,21 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Role } from '@forge-loom/shared-types';
-import { connectDb, disconnectDb, connectPrisma, disconnectPrisma, createTestUserPg } from './helpers.js';
+import { connectDb, disconnectDb, createTestUser } from './helpers.js';
 import { recomputeBuilderScore } from '../jobs/scoreWorker.js';
 import { prisma } from '../config/prisma.js';
 
 beforeAll(async () => {
   await connectDb();
-  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
-  await disconnectPrisma();
 });
 
 async function makeStudentProfile(): Promise<string> {
-  const { user } = await createTestUserPg(Role.Student);
+  const { user } = await createTestUser(Role.Student);
   await prisma.studentProfile.create({ data: { userId: user.id, name: 'Score Test Student' } });
   return user.id;
 }

@@ -1,19 +1,17 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { Role } from '@forge-loom/shared-types';
-import { buildApp, connectDb, disconnectDb, connectPrisma, disconnectPrisma, createTestUserPg } from './helpers.js';
+import { buildApp, connectDb, disconnectDb, createTestUser } from './helpers.js';
 import { prisma } from '../config/prisma.js';
 
 const app = buildApp();
 
 beforeAll(async () => {
   await connectDb();
-  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
-  await disconnectPrisma();
 });
 
 describe('attendance marking', () => {
@@ -22,14 +20,14 @@ describe('attendance marking', () => {
       user: trainerUser,
       email: trainerEmail,
       password: trainerPw,
-    } = await createTestUserPg(Role.Trainer);
+    } = await createTestUser(Role.Trainer);
     const {
       user: studentUser,
       email: studentEmail,
       password: studentPw,
-    } = await createTestUserPg(Role.Student);
-    const { user: outsiderUser } = await createTestUserPg(Role.Student);
-    const { user: adminUser } = await createTestUserPg(Role.CourseAdmin);
+    } = await createTestUser(Role.Student);
+    const { user: outsiderUser } = await createTestUser(Role.Student);
+    const { user: adminUser } = await createTestUser(Role.CourseAdmin);
 
     const adminProfile = await prisma.courseAdminProfile.create({
       data: { userId: adminUser.id, name: 'Attendance Test Admin' },
@@ -121,8 +119,8 @@ describe('attendance marking', () => {
   });
 
   it('blocks a role other than trainer from marking attendance', async () => {
-    const { user: adminUser } = await createTestUserPg(Role.CourseAdmin);
-    const { email: studentEmail, password: studentPw } = await createTestUserPg(Role.Student);
+    const { user: adminUser } = await createTestUser(Role.CourseAdmin);
+    const { email: studentEmail, password: studentPw } = await createTestUser(Role.Student);
 
     const adminProfile = await prisma.courseAdminProfile.create({
       data: { userId: adminUser.id, name: 'Another Admin' },

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { Role } from '@forge-loom/shared-types';
 import type { SprintStatus } from '@prisma/client';
-import { connectDb, disconnectDb, connectPrisma, disconnectPrisma, createTestUserPg } from './helpers.js';
+import { connectDb, disconnectDb, createTestUser } from './helpers.js';
 import { prisma } from '../config/prisma.js';
 import { checkInvestorUnlock } from '../jobs/citadelWorker.js';
 
@@ -11,18 +11,16 @@ import { checkInvestorUnlock } from '../jobs/citadelWorker.js';
 // guarantees, which are already covered by that library's own test suite.
 beforeAll(async () => {
   await connectDb();
-  await connectPrisma();
 });
 
 afterAll(async () => {
   await disconnectDb();
-  await disconnectPrisma();
 });
 
 async function makeTeamWithSprints(sprintStatuses: SprintStatus[]) {
   const college = await prisma.college.create({ data: { name: 'Citadel Test College' } });
-  const { user: student } = await createTestUserPg(Role.Student);
-  const { user: mentor } = await createTestUserPg(Role.Mentor);
+  const { user: student } = await createTestUser(Role.Student);
+  const { user: mentor } = await createTestUser(Role.Mentor);
   const studentProfile = await prisma.studentProfile.create({
     data: { userId: student.id, name: 'Citadel Test Student', collegeId: college.id },
   });
