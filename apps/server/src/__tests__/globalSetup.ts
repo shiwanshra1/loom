@@ -7,10 +7,8 @@ import { PrismaClient } from '@prisma/client';
 // real dev database (a different name, set in apps/server/.env.test).
 //
 // The Mongo reset step this used to have was removed outright in Phase 7 of
-// the Prisma migration — confirmed via a full grep audit first that nothing
-// outside apps/server/src/models/ and config/db.ts references mongoose
-// anymore (every domain this suite covers moved off it across Phases 1-6).
-// The hardcoded per-phase table list is gone too, replaced with a generic
+// the Prisma migration (Mongo/Mongoose were fully retired in Phase 9). The
+// hardcoded per-phase table list is gone too, replaced with a generic
 // enumeration so this file never needs editing again as future phases land.
 export default async function setup() {
   process.env.NODE_ENV = 'test';

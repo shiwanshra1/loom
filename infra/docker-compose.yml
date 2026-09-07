@@ -1,11 +1,4 @@
 services:
-  # Kept running alongside postgres for the whole migration window (Phases 1-8)
-  # — modules not yet ported to Prisma still depend on this. Removed only in
-  # Phase 9 cleanup, once every module has been cut over.
-  mongo:
-    image: mongo:7
-    ports: ["27017:27017"]
-    volumes: ["mongo_data:/data/db"]
   # Host port 5433 (not 5432) — this machine already has an unrelated project's
   # Postgres container bound to 5432, and this compose file must not conflict
   # with it or assume it can be stopped.
@@ -32,6 +25,5 @@ services:
     volumes: ["minio_data:/data"]
 
 volumes:
-  mongo_data:
   postgres_data:
   minio_data:
