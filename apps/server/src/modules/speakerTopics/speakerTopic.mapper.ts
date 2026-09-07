@@ -1,11 +1,11 @@
 import type { SpeakerTopicDto } from '@forge-loom/shared-types';
-import type { SpeakerTopicDocument } from '../../models/SpeakerTopic.js';
+import type { SpeakerTopic } from '@prisma/client';
 
-export function toSpeakerTopicDto(topic: SpeakerTopicDocument): SpeakerTopicDto {
+export function toSpeakerTopicDto(topic: SpeakerTopic): SpeakerTopicDto {
   return {
-    id: topic._id.toString(),
+    id: topic.id,
     title: topic.title,
-    description: topic.description,
+    description: topic.description ?? undefined,
     status: topic.status,
     scheduledAt: topic.scheduledAt ? topic.scheduledAt.toISOString() : null,
     venue: topic.venue,

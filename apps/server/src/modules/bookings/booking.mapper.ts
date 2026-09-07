@@ -1,18 +1,18 @@
 import type { BookingDto } from '@forge-loom/shared-types';
-import type { BookingDocument } from '../../models/Booking.js';
-import { UserModel } from '../../models/User.js';
+import type { Booking } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 
-export async function toBookingDto(booking: BookingDocument): Promise<BookingDto> {
+export async function toBookingDto(booking: Booking): Promise<BookingDto> {
   const [requester, mentor] = await Promise.all([
-    UserModel.findById(booking.requesterId),
-    UserModel.findById(booking.mentorId),
+    prisma.user.findUnique({ where: { id: booking.requesterId } }),
+    prisma.user.findUnique({ where: { id: booking.mentorId } }),
   ]);
 
   return {
-    id: booking._id.toString(),
-    requesterId: booking.requesterId.toString(),
+    id: booking.id,
+    requesterId: booking.requesterId,
     requesterEmail: requester?.email ?? '',
-    mentorId: booking.mentorId.toString(),
+    mentorId: booking.mentorId,
     mentorEmail: mentor?.email ?? '',
     title: booking.title,
     scheduledAt: booking.scheduledAt.toISOString(),
@@ -20,7 +20,7 @@ export async function toBookingDto(booking: BookingDocument): Promise<BookingDto
     mode: booking.mode,
     status: booking.status,
     agenda: booking.agenda,
-    note: booking.note,
-    meetingLink: booking.meetingLink,
+    note: booking.note ?? undefined,
+    meetingLink: booking.meetingLink ?? undefined,
   };
 }

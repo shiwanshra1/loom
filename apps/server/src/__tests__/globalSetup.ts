@@ -71,6 +71,14 @@ const MIGRATED_TABLES = [
   'InterestExpression',
   // Phase 4 — Scoring
   'ScoreEvent',
+  // Phase 5 — Engagement
+  'Booking',
+  'Notification',
+  'CommunityPost',
+  'Event',
+  'EventRegistration',
+  'AccessRequest',
+  'SpeakerTopic',
 ];
 
 async function resetPostgres() {

@@ -1,11 +1,11 @@
 import type { CommunityPostDto } from '@forge-loom/shared-types';
-import { UserModel } from '../../models/User.js';
-import type { CommunityPostDocument } from '../../models/CommunityPost.js';
+import type { CommunityPost } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 
-export async function toCommunityPostDto(post: CommunityPostDocument): Promise<CommunityPostDto> {
-  const author = await UserModel.findById(post.authorId);
+export async function toCommunityPostDto(post: CommunityPost): Promise<CommunityPostDto> {
+  const author = await prisma.user.findUnique({ where: { id: post.authorId } });
   return {
-    id: post._id.toString(),
+    id: post.id,
     authorEmail: author?.email ?? '',
     content: post.content,
     createdAt: post.createdAt.toISOString(),

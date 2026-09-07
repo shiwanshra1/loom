@@ -82,16 +82,16 @@ Files: `apps/server/src/modules/scoring/scoreEvent.service.ts`, `apps/server/src
 
 ---
 
-## Phase 5 — Engagement module group
+## Phase 5 — Engagement module group — ✅ DONE (2026-09-07)
 
 Files: `apps/server/src/modules/bookings/*.ts`, `notifications/*.ts`, `community/*.ts`, `events/*.ts`, `accessRequests/*.ts`, `speakerTopics/*.ts`.
 
-- [ ] **T5.1** Delete `Booking.ts`, `Notification.ts`, `CommunityPost.ts`, `Event.ts`, `EventRegistration.ts`, `AccessRequest.ts`, `SpeakerTopic.ts` models.
-- [ ] **T5.2** `event.service.ts`: `EventRegistrationModel.findOneAndUpdate` upsert becomes `prisma.eventRegistration.upsert({ where: { eventId_userId: {...} } })`.
-- [ ] **T5.3** `accessRequest.service.ts`: `findOneAndUpdate` upsert on `{requesterId,eventId}` becomes `prisma.accessRequest.upsert(...)`; `findById(requestId)` becomes `prisma.accessRequest.findUnique({ where: { id: requestId } })` (surrogate id preserved, per design doc §1).
-- [ ] **T5.4** `notification.service.ts`: straightforward `create`/`findMany`/`updateMany` (mark-read) translations.
-- [ ] **T5.5** `booking.service.ts`: `listMyBookings`'s `$or` on `{requesterId, mentorId}` translates directly to Prisma's `OR: [{ requesterId }, { mentorId }]` — unlike the (cancelled) Firestore plan, Postgres/Prisma supports this natively in one query; no service-layer query-splitting needed here.
-- **Checkpoint**: manual/integration smoke of booking, notification, event-registration, and access-request flows (no dedicated `.test.ts` file currently exists for these per the `__tests__/` listing — a **pre-existing test-coverage gap**, not a regression introduced by this migration, but worth flagging during review).
+- [x] **T5.1 — correction, same pattern as every prior phase**: did not delete the Mongoose models — deferred to Phase 9.
+- [x] **T5.2** `EventRegistration` upsert ported to `prisma.eventRegistration.upsert({ where: { eventId_userId: {...} } })` exactly as ticketed.
+- [x] **T5.3** `AccessRequest` upsert ported to `prisma.accessRequest.upsert(...)` on the composite key; `findById` → `prisma.accessRequest.findUnique({where:{id}})` — the surrogate id was preserved in the schema exactly as the design doc called for, so this needed no rework.
+- [x] **T5.4** `notification.service.ts` ported to plain `create`/`findMany`/`updateMany`, exactly as ticketed. **The Mongoose-ObjectId guard added in Phase 2 (and relied on by Phases 3 and 4) was removed** — this is the phase that makes it unnecessary, not just another place to reapply it.
+- [x] **T5.5** `listMyBookings`'s `$or` ported to a native Prisma `OR: [{requesterId}, {mentorId}]` in one query, exactly as ticketed — confirmed no query-splitting was needed, unlike what the cancelled Firestore plan would have required.
+- **Checkpoint — met**: no dedicated `.test.ts` file exists for this domain (pre-existing gap, not introduced by this migration) — verified via a full **live HTTP smoke test** instead, per the ticket's own instruction: created a booking (student→mentor1), confirmed the recipient's notification genuinely arrived (previously silently skipped by the now-removed guard, going back to Phase 2's own live test), marked it read, cancelled the booking and confirmed the *other* party got the cancellation notification, confirmed `listMyBookings` correctly returns the booking from both sides of the `OR`; posted a community post and confirmed it appears in the feed for a different user; hosted an event and registered for it as a different user, confirmed `registeredCount`/`isRegistered` update correctly; requested access to that event as a Media Partner, confirmed the request is idempotent on a duplicate call (same id returned, not a duplicate row) and that the host received a notification for it (twice, once per call — matching the original Mongo behavior's own unconditional-notify-on-every-call semantics, not a regression), confirmed the host can approve it and a non-host gets 403 trying to; proposed and listed a speaker topic.
 
 ---
 

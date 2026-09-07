@@ -1,12 +1,12 @@
 import type { NotificationDto } from '@forge-loom/shared-types';
-import type { NotificationDocument } from '../../models/Notification.js';
+import type { Notification } from '@prisma/client';
 
-export function toNotificationDto(notification: NotificationDocument): NotificationDto {
+export function toNotificationDto(notification: Notification): NotificationDto {
   return {
-    id: notification._id.toString(),
+    id: notification.id,
     type: notification.type,
     title: notification.title,
-    body: notification.body,
+    body: notification.body ?? undefined,
     read: notification.read,
     createdAt: notification.createdAt.toISOString(),
   };

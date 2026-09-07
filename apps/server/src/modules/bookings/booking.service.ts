@@ -1,6 +1,7 @@
 import { Role } from '@forge-loom/shared-types';
-import { BookingModel, type BookingDocument } from '../../models/Booking.js';
-import { UserModel } from '../../models/User.js';
+import type { Booking, Role as PrismaRole } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
+import { toPrismaEnum } from '../../utils/prismaEnum.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { createNotification } from '../notifications/notification.service.js';
 import type { AuthenticatedUser } from '../../middleware/authenticate.js';
@@ -17,25 +18,26 @@ import type { CreateBookingInput, UpdateBookingInput } from './booking.validatio
 export async function createBooking(
   viewer: AuthenticatedUser,
   input: CreateBookingInput
-): Promise<BookingDocument> {
+): Promise<Booking> {
   let requesterId: string;
   let mentorId: string;
 
   if (viewer.role === Role.Sponsor) {
-    const collegeAdmin = await UserModel.findOne({
-      email: input.counterpartEmail,
-      role: Role.CollegeAdmin,
+    const collegeAdmin = await prisma.user.findFirst({
+      where: { email: input.counterpartEmail, role: toPrismaEnum<PrismaRole>(Role.CollegeAdmin) },
     });
     if (!collegeAdmin) {
       throw new ApiError(400, `No college admin account found for ${input.counterpartEmail}`);
     }
     requesterId = viewer.userId;
-    mentorId = collegeAdmin._id.toString();
+    mentorId = collegeAdmin.id;
   } else if (viewer.role === Role.Student) {
-    const mentor = await UserModel.findOne({
-      email: input.counterpartEmail,
-      role: Role.Mentor,
-      collegeId: viewer.collegeId,
+    const mentor = await prisma.user.findFirst({
+      where: {
+        email: input.counterpartEmail,
+        role: toPrismaEnum<PrismaRole>(Role.Mentor),
+        collegeId: viewer.collegeId,
+      },
     });
     if (!mentor) {
       throw new ApiError(
@@ -44,12 +46,14 @@ export async function createBooking(
       );
     }
     requesterId = viewer.userId;
-    mentorId = mentor._id.toString();
+    mentorId = mentor.id;
   } else {
-    const student = await UserModel.findOne({
-      email: input.counterpartEmail,
-      role: Role.Student,
-      collegeId: viewer.collegeId,
+    const student = await prisma.user.findFirst({
+      where: {
+        email: input.counterpartEmail,
+        role: toPrismaEnum<PrismaRole>(Role.Student),
+        collegeId: viewer.collegeId,
+      },
     });
     if (!student) {
       throw new ApiError(
@@ -57,17 +61,19 @@ export async function createBooking(
         `No student account found for ${input.counterpartEmail} at this college`
       );
     }
-    requesterId = student._id.toString();
+    requesterId = student.id;
     mentorId = viewer.userId;
   }
 
-  const booking = await BookingModel.create({
-    requesterId,
-    mentorId,
-    title: input.title,
-    scheduledAt: new Date(input.scheduledAt),
-    durationMinutes: input.durationMinutes ?? 30,
-    agenda: input.agenda ?? [],
+  const booking = await prisma.booking.create({
+    data: {
+      requesterId,
+      mentorId,
+      title: input.title,
+      scheduledAt: new Date(input.scheduledAt),
+      durationMinutes: input.durationMinutes ?? 30,
+      agenda: input.agenda ?? [],
+    },
   });
 
   const notifyUserId = viewer.userId === requesterId ? mentorId : requesterId;
@@ -81,25 +87,23 @@ export async function createBooking(
   return booking;
 }
 
-export async function listMyBookings(viewer: AuthenticatedUser): Promise<BookingDocument[]> {
-  return BookingModel.find({
-    $or: [{ requesterId: viewer.userId }, { mentorId: viewer.userId }],
-  }).sort({ scheduledAt: -1 });
+export async function listMyBookings(viewer: AuthenticatedUser): Promise<Booking[]> {
+  return prisma.booking.findMany({
+    where: { OR: [{ requesterId: viewer.userId }, { mentorId: viewer.userId }] },
+    orderBy: { scheduledAt: 'desc' },
+  });
 }
 
-function canManageBooking(booking: BookingDocument, viewer: AuthenticatedUser): boolean {
-  return (
-    booking.requesterId.toString() === viewer.userId ||
-    booking.mentorId.toString() === viewer.userId
-  );
+function canManageBooking(booking: Booking, viewer: AuthenticatedUser): boolean {
+  return booking.requesterId === viewer.userId || booking.mentorId === viewer.userId;
 }
 
 export async function updateBooking(
   bookingId: string,
   viewer: AuthenticatedUser,
   input: UpdateBookingInput
-): Promise<BookingDocument> {
-  const booking = await BookingModel.findById(bookingId);
+): Promise<Booking> {
+  const booking = await prisma.booking.findUnique({ where: { id: bookingId } });
   if (!booking) {
     throw new ApiError(404, 'Booking not found');
   }
@@ -107,24 +111,22 @@ export async function updateBooking(
     throw new ApiError(403, 'You do not have access to this booking');
   }
 
-  if (input.note !== undefined) booking.note = input.note;
-  if (input.meetingLink !== undefined) booking.meetingLink = input.meetingLink;
+  const statusChanged = input.status !== undefined && input.status !== booking.status;
 
-  if (input.status !== undefined && input.status !== booking.status) {
-    booking.status = input.status;
-    if (input.status === 'cancelled') {
-      const otherPartyId =
-        viewer.userId === booking.requesterId.toString()
-          ? booking.mentorId.toString()
-          : booking.requesterId.toString();
-      await createNotification(
-        otherPartyId,
-        'booking_cancelled',
-        `Session cancelled: ${booking.title}`
-      );
-    }
+  const updated = await prisma.booking.update({
+    where: { id: bookingId },
+    data: {
+      ...(input.note !== undefined && { note: input.note }),
+      ...(input.meetingLink !== undefined && { meetingLink: input.meetingLink }),
+      ...(statusChanged && { status: input.status }),
+    },
+  });
+
+  if (statusChanged && input.status === 'cancelled') {
+    const otherPartyId =
+      viewer.userId === booking.requesterId ? booking.mentorId : booking.requesterId;
+    await createNotification(otherPartyId, 'booking_cancelled', `Session cancelled: ${booking.title}`);
   }
 
-  await booking.save();
-  return booking;
+  return updated;
 }

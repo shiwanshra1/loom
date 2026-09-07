@@ -1,12 +1,10 @@
-import { CommunityPostModel, type CommunityPostDocument } from '../../models/CommunityPost.js';
+import type { CommunityPost } from '@prisma/client';
+import { prisma } from '../../config/prisma.js';
 
-export async function createPost(
-  authorId: string,
-  content: string
-): Promise<CommunityPostDocument> {
-  return CommunityPostModel.create({ authorId, content });
+export async function createPost(authorId: string, content: string): Promise<CommunityPost> {
+  return prisma.communityPost.create({ data: { authorId, content } });
 }
 
-export async function listFeed(limit = 50): Promise<CommunityPostDocument[]> {
-  return CommunityPostModel.find().sort({ createdAt: -1 }).limit(limit);
+export async function listFeed(limit = 50): Promise<CommunityPost[]> {
+  return prisma.communityPost.findMany({ orderBy: { createdAt: 'desc' }, take: limit });
 }

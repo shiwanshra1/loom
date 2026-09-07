@@ -1,13 +1,10 @@
 import type { AccessRequestDto } from '@forge-loom/shared-types';
-import type { AccessRequestDocument } from '../../models/AccessRequest.js';
+import type { AccessRequest } from '@prisma/client';
 
-export function toAccessRequestDto(
-  request: AccessRequestDocument,
-  eventTitle: string
-): AccessRequestDto {
+export function toAccessRequestDto(request: AccessRequest, eventTitle: string): AccessRequestDto {
   return {
-    id: request._id.toString(),
-    eventId: request.eventId.toString(),
+    id: request.id,
+    eventId: request.eventId,
     eventTitle,
     status: request.status,
     requestedAt: request.requestedAt.toISOString(),
