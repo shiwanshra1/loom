@@ -1,7 +1,7 @@
 # Forge Loom — System Architecture
 ### The Execution Backbone for the FORGE Program (Winnovation)
 
-Stack: **MongoDB + Express + React + Node.js, all in TypeScript**
+Stack: **PostgreSQL + Express + React + Node.js, all in TypeScript (PERN)**
 Target scale: **5,000 – 50,000 concurrent users**
 Model: **One codebase, role-based dashboards** (single React app, single Express API)
 
@@ -26,10 +26,10 @@ Model: **One codebase, role-based dashboards** (single React app, single Express
 | State/data fetching | TanStack Query (React Query) | Caching, background refetch — important at scale so dashboards don't hammer the API |
 | UI | Tailwind + a component library (shadcn/ui or similar) | Speed of build, consistent design tokens across 11 role dashboards |
 | Backend | Node.js + Express + TypeScript | Matches your stack choice, huge ecosystem, easy to scale horizontally |
-| Database | MongoDB (Atlas) via Mongoose (with strict TS schemas) | Flexible schema per role-profile, good horizontal scaling story |
+| Database | PostgreSQL via Prisma (strict, generated TS types from a single `schema.prisma`) | Real relational integrity (FKs, unique/compound constraints enforced by the DB, not just the app layer), mature managed-hosting ecosystem |
 | Cache / Session store / Queue broker | Redis | Session caching, rate limiting, BullMQ backing store |
 | Job Queue | BullMQ | Score recalculation, certificate generation, notification fan-out, report exports |
-| Search (Talent Pool, course search) | MongoDB Atlas Search (or Elasticsearch if you outgrow it) | Full-text + faceted filtering by skill/domain/score without hammering primary DB |
+| Search (Talent Pool, course search) | Postgres full-text search (`tsvector`/`pg_trgm`) at current scale; graduate to Elasticsearch/Meilisearch only if query volume genuinely demands it | Faceted filtering by skill/domain/score without hammering primary DB, no extra infra needed until scale actually requires it |
 | File/Media storage | S3-compatible object storage (AWS S3 / Cloudflare R2) | Resumes, resource uploads, certificate PDFs, event media |
 | Auth | JWT (short-lived access token + rotating refresh token), bcrypt/argon2 for passwords | Stateless auth scales horizontally without sticky sessions |
 | Real-time (notifications, live sprint boards) | Socket.IO with Redis adapter | Needed once you're running multiple Node instances behind a load balancer |
@@ -60,18 +60,18 @@ Model: **One codebase, role-based dashboards** (single React app, single Express
      ┌──────────┬┼──────────────────────┼─────────────────────┼───────────┐
      │          │                     │                    │           │
 ┌─────┼─────┐ ┌───┼─────┐        ┌────────┼───────┐     ┌────────┼───────┐  ┌───┼───────┐
-│ MongoDB │ │ Redis  │        │ BullMQ Workers│     │ Atlas Search /│  │  S3    │
-│ (Atlas, │ │(cache, │        │ (score calc,  │     │ Elasticsearch │  │(files, │
-│replica  │ │session,│        │ certs, notifs,│     │ (talent pool, │  │ certs, │
-│  set)   │ │ pub/sub│        │ report export)│     │ course search)│  │resumes)│
+│Postgres │ │ Redis  │        │ BullMQ Workers│     │ Postgres FTS /│  │  S3    │
+│ (managed│ │(cache, │        │ (score calc,  │     │ Elasticsearch │  │(files, │
+│ read    │ │session,│        │ certs, notifs,│     │ (talent pool, │  │ certs, │
+│replicas)│ │ pub/sub│        │ report export)│     │ course search)│  │resumes)│
 └─────────┘ └────────┘        └───────────────┘     └───────────────┘  └────────┘
 ```
 
 **Why this shape scales to 50k users:**
 - API layer is stateless — add more Node instances behind the load balancer with zero code change.
-- MongoDB read replicas absorb the read-heavy dashboard/profile traffic; writes go to primary.
-- Redis takes session lookups and rate-limit counters off MongoDB entirely.
-- Search is offloaded from MongoDB's primary query engine so HR's "filter 50,000 builder profiles by skill+score+domain" doesn't compete with attendance writes.
+- Postgres read replicas absorb the read-heavy dashboard/profile traffic; writes go to primary.
+- Redis takes session lookups and rate-limit counters off Postgres entirely.
+- Search is offloaded from Postgres's primary query engine so HR's "filter 50,000 builder profiles by skill+score+domain" doesn't compete with attendance writes.
 - Anything slow (PDF certs, bulk notification sends, CSV roster imports) is a background job — the user gets an instant "processing" response, not a hung request.
 
 ---
@@ -79,7 +79,7 @@ Model: **One codebase, role-based dashboards** (single React app, single Express
 ## 4. Authentication & Role-Based Access
 
 ### 4.1 Identity model
-One `users` collection holds core identity (email, password hash, role, status, MFA flag). Each role then has its **own profile collection** with role-specific fields, linked by `userId`. This avoids a single bloated "God document" with 40 optional fields, and keeps each role's queries fast and focused.
+One `users` table holds core identity (email, password hash, role, status, MFA flag). Each role then has its **own profile table**, one-to-one with `users` via `userId`, with role-specific fields. This avoids a single bloated "God table" with 40 nullable columns, and keeps each role's queries fast and focused — and unlike a document store, Postgres enforces the one-to-one relationship itself via a unique FK, not just app-level convention.
 
 ```
 users
@@ -101,66 +101,65 @@ users
 
 ### 4.3 Authorization
 - Express middleware chain: `authenticate` (verifies JWT) → `authorize(...allowedRoles)` (checks role) → `scopeToCollege` (for college-scoped roles like College Admin, Trainer, Mentor — ensures a mentor at College A can never query College B's students).
-- Every collection that holds role-scoped data carries a `collegeId` (or `cohortId`) field, and it is **always** part of the query filter for non-admin roles — enforced at the middleware/repository layer, not left to individual route handlers to remember.
+- Every table that holds role-scoped data carries a `collegeId` (or `cohortId`) column, and it is **always** part of the query filter for non-admin roles — enforced at the middleware/repository layer, not left to individual route handlers to remember.
 - Forge Admin (Winnovation internal) is a superuser role that bypasses college scoping — needed for national-level reporting across the whole network.
 
 ---
 
-## 5. Core Data Model (MongoDB Collections)
+## 5. Core Data Model (PostgreSQL Tables via Prisma)
 
-This is deliberately split into **profile data** (slow-changing, read-heavy) and **activity data** (fast-changing, write-heavy, often time-series-shaped).
+This is deliberately split into **profile data** (slow-changing, read-heavy) and **activity data** (fast-changing, write-heavy, often time-series-shaped). For the full, current, field-by-field Prisma schema (all 34+ tables, every relation/index/constraint), see `docs/postgres-database-design.md` — the tables below are the original high-level design intent this system was planned around.
 
 ### 5.1 Identity & Profiles
-| Collection | Key fields | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `users` | email, passwordHash, role, collegeId, status | Auth root |
-| `studentProfiles` | userId, name, college, course, mentorId, builderScore, skills[], domain, linkedIn | `skills[]` and `domain` compound-indexed for Talent Pool search |
-| `mentorProfiles` | userId, expertise[], assignedStudents[], bio | |
-| `trainerProfiles` | userId, expertise[], assignedTeams[] | |
-| `speakerProfiles` | userId, topics[], bio, pastSessions[] | |
-| `hrProfiles` | userId, companyName, industry, companyDetails | |
-| `sponsorProfiles` | userId, orgName, sponsorshipTier | |
-| `collegeProfiles` | userId, collegeName, accreditationInfo | One per institutional partner |
-| `communityLeaderProfiles` | userId, orgName, volunteerNetwork[] | |
-| `mediaPartnerProfiles` | userId, outlet, accessLevel | |
-| `memberProfiles` | userId, interests[] | Lightweight — feed/events only |
+| `users` | email, passwordHash, role, collegeId (FK), status | Auth root |
+| `student_profiles` | userId (FK, unique), name, college, course, mentorId (FK), builderScore, skills (array), domain, linkedIn | `(collegeId, domain, builderScore)` composite index for Talent Pool search |
+| `mentor_profiles` | userId (FK, unique), expertise (array), bio | |
+| `trainer_profiles` | userId (FK, unique), expertise (array) | |
+| `speaker_profiles` | userId (FK, unique), topics (array), bio | |
+| `hr_profiles` | userId (FK, unique), companyName, industry, companyDetails | |
+| `sponsor_profiles` | userId (FK, unique), orgName, sponsorshipTier | |
+| `college_profiles` | userId (FK, unique), collegeName, accreditationInfo | One per institutional partner |
+| `community_leader_profiles` | userId (FK, unique), orgName | |
+| `media_partner_profiles` | userId (FK, unique), outlet, accessLevel | |
+| `member_profiles` | userId (FK, unique), interests (array) | Lightweight — feed/events only |
 
 ### 5.2 Program & Academic Structure
-| Collection | Key fields | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `colleges` | name, location, partnerTier, activeCohortIds[] | |
-| `cohorts` | collegeId, startDate, endDate, phase (activation/bootcamp/citadel) | Drives which tabs/features are active for a student |
-| `courses` | name, duration, trainerId, enrolledStudents[] | |
-| `teams` | name, members[], mentorId, trainerId, problemStatementId | Citadel + course-level teams |
+| `colleges` | name, location, partnerTier | |
+| `cohorts` | collegeId (FK), startDate, endDate, phase (activation/bootcamp/citadel) | Drives which tabs/features are active for a student |
+| `courses` | title, durationHours/Days, trainerId (FK) | Enrollment is its own table (`enrollments`), not an array column, so it scales past the row-size limits an embedded list would hit |
+| `teams` | name, collegeId (FK), mentorId (FK), trainerId (FK), problemStatementId (FK) | Citadel + course-level teams; membership lives in a join table (`team_members`), not an array column |
 
 ### 5.3 Citadel (Sprint Execution Engine)
-| Collection | Key fields | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `problemStatements` | title, source (industry/gov), domain, difficulty, postedBy | HR/Industry-posted |
-| `sprints` | teamId, cycleNumber (1–3+), status enum, startDate, endDate, milestoneSubmissionId | See state machine in §7 |
-| `milestoneSubmissions` | sprintId, teamId, artifactUrls[], mentorFeedback[], demoDate | Versioned — keep submission history, don't overwrite |
-| `investorAccessGrants` | teamId, grantedAt, reason ("3 sprint cycles complete") | Created automatically when the Citadel state machine hits the unlock condition |
+| `problem_statements` | title, source (industry/gov), domain, difficulty, postedBy (FK) | HR/Industry-posted |
+| `sprints` | teamId (FK), cycleNumber (1–3+), status enum, startDate, endDate | See state machine in §7 |
+| `milestone_submissions` | sprintId (FK), teamId (FK), artifactUrls (array), demoDate | Versioned — keep submission history, don't overwrite; feedback lives in a child table (`milestone_feedback`) |
+| `investor_access_grants` | teamId (FK, unique), grantedAt, reason ("3 sprint cycles complete") | Created automatically when the Citadel state machine hits the unlock condition |
 
 ### 5.4 Activity / Time-Series (write-heavy — see §6 for indexing)
-| Collection | Key fields | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `attendanceRecords` | userId, sessionId, timestamp, status | High volume — index on `(userId, timestamp)` and `(sessionId)` |
-| `scoreEvents` | userId, category (event/project/mentor/team), points, sourceRef, timestamp | Append-only log; `builderScore` on the profile is a derived, cached rollup |
-| `feedbackEntries` | fromUserId, toUserId, sessionId/sprintId, rating, comment | |
-| `notifications` | userId, type, payload, read (bool), createdAt | TTL index — auto-expire read notifications after N days to keep the collection lean |
+| `attendance_records` | studentId (FK), sessionId (FK), markedAt, status | High volume — composite index on `(studentId, markedAt)` |
+| `score_events` | studentId (FK), category (event/project/mentor/team), points, sourceRef, createdAt | Append-only log; `builderScore` on the profile is a derived, cached rollup |
+| `milestone_feedback` | milestoneSubmissionId (FK), mentorId (FK), rating, comment | |
+| `notifications` | userId (FK), type, body, read (bool), createdAt | No TTL/auto-expire mechanism in Postgres the way Mongo has TTL indexes — a periodic cleanup job (or partition-by-month + drop-old-partitions) is the equivalent if the table grows large enough to need pruning |
 
 ### 5.5 Certifications
-| Collection | Key fields | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `certificationCourses` | name, purpose, duration, issuingBody | |
-| `certificateRecords` | userId, courseId, qrCode (unique token), issuedAt, verifyUrl, pdfUrl | `qrCode` is a signed, unguessable token — verification endpoint is public and rate-limited |
+| `certificates` | studentId (FK), courseId (FK), enrollmentId (FK, unique), token (unique), pdfKey, issuedAt | `token` is a cryptographically random, unguessable value — verification endpoint is public and rate-limited |
 
 ### 5.6 Events & Engagement
-| Collection | Key fields | Notes |
+| Table | Key columns | Notes |
 |---|---|---|
-| `events` | title, type (hackathon/seminar/workshop), hostId, collegeId, date | |
-| `eventRegistrations` | eventId, userId, registeredAt | |
-| `bookings` | requesterId (sponsor/HR), targetId (college/student), timeSlot, status | "Book a Meet" / "Book a Session" flows |
+| `events` | title, type (hackathon/seminar/workshop), hostedBy (FK), collegeId (FK), scheduledAt | |
+| `event_registrations` | eventId (FK), userId (FK) | Composite PK `(eventId, userId)` enforces one registration per user per event at the DB level |
+| `bookings` | requesterId (FK), mentorId (FK, "other party"), scheduledAt, status | "Book a Meet" / "Book a Session" flows |
 
 ---
 
@@ -168,11 +167,11 @@ This is deliberately split into **profile data** (slow-changing, read-heavy) and
 
 This is the part that most LMS builds get wrong and pay for later at scale — so it's worth being explicit:
 
-1. **Compound indexes on every scoped query.** e.g. `studentProfiles`: index on `(collegeId, domain, builderScore)` so HR/mentors filtering within scope stay fast. `attendanceRecords`: index on `(userId, timestamp)`.
-2. **Talent Pool search is NOT a MongoDB `find()` at scale.** Once you're past a few thousand profiles, HR's "filter by skill + domain + score range, full-text search bio" needs a dedicated search layer — start with **MongoDB Atlas Search** (built on Lucene, no extra infra) and only graduate to a separate Elasticsearch cluster if query volume genuinely demands it.
-3. **Append-only collections (`scoreEvents`, `attendanceRecords`, `notifications`) should never be queried for aggregate values in the request path.** The `builderScore` field on `studentProfiles` is a cached rollup, recomputed by a BullMQ worker whenever a new `scoreEvent` lands. Reading a profile is always O(1) — you never sum a log table live during a page load.
-4. **TTL indexes** on `notifications` (auto-expire old read ones) and short-lived tokens in Redis, not Mongo, to keep hot collections small.
-5. **Pagination everywhere, cursor-based not offset-based**, for any list that can grow past a few hundred items (student rosters, event lists, notification feeds) — offset pagination (`skip/limit`) degrades badly past page ~50 at this scale.
+1. **Composite indexes on every scoped query.** e.g. `student_profiles`: index on `(collegeId, domain, builderScore)` so HR/mentors filtering within scope stay fast. `attendance_records`: index on `(studentId, markedAt)`. Postgres composite indexes are declared directly in `schema.prisma` via `@@index`/`@@unique` — see `docs/postgres-database-design.md` §5 for the full list.
+2. **Talent Pool search is a plain indexed query at current scale, with a documented upgrade path.** HR's "filter by skill + domain + score range, full-text search bio" runs directly against the `(collegeId, domain, builderScore)` index today. Once free-text search over `skills`/`bio` genuinely needs to be fast at high volume, add Postgres native full-text search (`tsvector` columns + a GIN index, or `pg_trgm` for fuzzy skill matching) before reaching for a separate search cluster — only graduate to Elasticsearch/Meilisearch if query volume outgrows what Postgres FTS can do in-process.
+3. **Append-only tables (`score_events`, `attendance_records`, `notifications`) should never be queried for aggregate values in the request path.** The `builderScore` column on `student_profiles` is a cached rollup, recomputed by a BullMQ worker whenever a new `score_event` lands. Reading a profile is always O(1) — you never sum a log table live during a page load.
+4. **No TTL indexes in Postgres** (that's a MongoDB-specific feature) — if `notifications` ever grows large enough to need pruning, the equivalent is a scheduled cleanup job (`DELETE ... WHERE read = true AND createdAt < now() - interval`) or table partitioning by month with old partitions dropped. Short-lived tokens still live in Redis, not Postgres, keeping hot tables small regardless.
+5. **Pagination everywhere, cursor-based not offset-based**, for any list that can grow past a few hundred items (student rosters, event lists, notification feeds) — offset pagination (`skip/limit`, or Prisma's `skip`/`take`) degrades badly past page ~50 at this scale; prefer a `WHERE id > :cursor ORDER BY id LIMIT :n` keyset pattern instead.
 
 ---
 
@@ -200,7 +199,7 @@ This is the part that most LMS builds get wrong and pay for later at scale — s
                                                     │  → Demo Day → Investor Access  │
                                                     └────────────────────────────────┘
 ```
-Each `sprint` document has a `status` enum: `not_started → in_progress → submitted → reviewed → complete`. A BullMQ job listens for `sprint.complete` events; once a team's 3rd sprint hits `complete`, it automatically writes an `investorAccessGrants` record and fires notifications to the team, mentor, and relevant industry/investor accounts. This is exactly why the milestone note ("once all 3 sprint cycles are completed... investors will start arriving") becomes a system-enforced rule instead of someone manually deciding when to notify investors.
+Each `sprints` row has a `status` enum: `not_started → in_progress → submitted → reviewed → complete`. A BullMQ job listens for `sprint.complete` events; once a team's 3rd sprint hits `complete`, it automatically writes an `investor_access_grants` row and fires notifications to the team, mentor, and relevant industry/investor accounts. This is exactly why the milestone note ("once all 3 sprint cycles are completed... investors will start arriving") becomes a system-enforced rule instead of someone manually deciding when to notify investors.
 
 ---
 
@@ -209,7 +208,7 @@ Each `sprint` document has a `status` enum: `not_started → in_progress → sub
 1. Trainer/College creates a `certificationCourse` (name, duration, issuing body) — either manually or via CSV bulk upload of a student roster.
 2. On issuance, a BullMQ job generates: a signed unique token → a public verification URL (`forgeloom.app/verify/:token`) → a QR code encoding that URL → a PDF certificate (stored in S3).
 3. The public verify endpoint is **unauthenticated but rate-limited**, and returns only non-sensitive confirmation data (name, course, issue date, validity) — never the student's full profile.
-4. `certificateRecords` are immutable once issued; revocation (if ever needed) is a status flag, not a delete, to preserve audit history.
+4. `certificates` rows are immutable once issued; revocation (if ever needed) is a status flag, not a delete, to preserve audit history.
 
 ---
 
@@ -252,12 +251,12 @@ forge-loom/
 │   │   │   ├── api/           # React Query hooks per resource
 │   │   │   └── routes/
 │   └── server/                # Express + TS API
+│       ├── prisma/            # schema.prisma + generated migrations
 │       ├── src/
 │       │   ├── modules/       # auth, students, citadel, hr, certifications, ...
-│       │   ├── models/        # Mongoose schemas
 │       │   ├── middleware/    # authenticate, authorize, scopeToCollege
 │       │   ├── jobs/          # BullMQ workers (score, certs, notifications)
-│       │   └── search/        # Atlas Search query builders
+│       │   └── config/        # prisma client singleton, env, redis, s3
 ├── packages/
 │   └── shared-types/          # shared TS types/interfaces (User, Role enums, DTOs)
 └── infra/                     # Docker, deployment configs

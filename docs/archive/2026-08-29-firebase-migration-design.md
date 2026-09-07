@@ -1,3 +1,8 @@
+> **SUPERSEDED — 2026-09-01.** This document describes a MongoDB→Firebase/Firestore
+> migration plan that was cancelled before any code was written. Forge Loom's
+> persistence layer is instead migrating from MongoDB to PostgreSQL via Prisma.
+> See `docs/postgres-database-design.md` and `docs/prisma-migration-tickets.md`.
+
 # Forge Loom — MongoDB → Firebase Migration Design
 
 ## Context
