@@ -39,6 +39,13 @@ export const env = {
     accessKey: required('S3_ACCESS_KEY'),
     secretKey: required('S3_SECRET_KEY'),
   },
+  mail: {
+    host: required('SMTP_HOST'),
+    port: Number(process.env.SMTP_PORT ?? 587),
+    user: required('SMTP_USER'),
+    pass: required('SMTP_PASS'),
+    fromAddress: process.env.MAIL_FROM ?? 'no-reply@forgeloom.dev',
+  },
   // Certificate verification links point here — the client origin, not the
   // API's own origin, since /verify/:token is meant to be a public page a
   // recruiter opens in a browser, not a raw API JSON response.

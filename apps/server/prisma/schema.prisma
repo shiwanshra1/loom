@@ -176,44 +176,49 @@ enum PlacementStatus {
 // ─────────────────────────────────────────────────────────────────────────
 
 model User {
-  id                   String     @id @default(cuid())
-  email                String     @unique
-  passwordHash         String
-  role                 Role
-  status               UserStatus @default(active)
-  collegeId            String?
-  college              College?   @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  mfaEnabled           Boolean    @default(false)
-  refreshTokenVersion  Int        @default(0)
-  lastLoginAt          DateTime?
-  createdAt            DateTime   @default(now())
-  updatedAt            DateTime   @updatedAt
+  id                  String     @id @default(cuid())
+  email               String     @unique
+  passwordHash        String
+  role                Role
+  status              UserStatus @default(active)
+  collegeId           String?
+  college             College?   @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  mfaEnabled          Boolean    @default(false)
+  refreshTokenVersion Int        @default(0)
+  // True for every admin-provisioned account (single or CSV-bulk) — the
+  // account was created with a system-generated temp password that must be
+  // changed before the rest of the app is usable. Self-registered accounts
+  // (the roles that still self-register) are never set to true.
+  mustChangePassword  Boolean    @default(false)
+  lastLoginAt         DateTime?
+  createdAt           DateTime   @default(now())
+  updatedAt           DateTime   @updatedAt
 
   // 1-1 role profiles (Cascade: profile has no purpose without the account)
-  studentProfile          StudentProfile?
-  mentorProfile           MentorProfile?
-  trainerProfile          TrainerProfile?
-  speakerProfile          SpeakerProfile?
-  hrProfile               HrProfile?
-  sponsorProfile          SponsorProfile?
-  collegeProfile          CollegeProfile?
-  communityLeaderProfile  CommunityLeaderProfile?
-  mediaPartnerProfile     MediaPartnerProfile?
-  memberProfile           MemberProfile?
-  courseAdminProfile      CourseAdminProfile?
+  studentProfile         StudentProfile?
+  mentorProfile          MentorProfile?
+  trainerProfile         TrainerProfile?
+  speakerProfile         SpeakerProfile?
+  hrProfile              HrProfile?
+  sponsorProfile         SponsorProfile?
+  collegeProfile         CollegeProfile?
+  communityLeaderProfile CommunityLeaderProfile?
+  mediaPartnerProfile    MediaPartnerProfile?
+  memberProfile          MemberProfile?
+  courseAdminProfile     CourseAdminProfile?
 
   // Reverse relations used as "actor" across the app (Restrict — see §2)
-  markedAttendance        AttendanceRecord[]      @relation("AttendanceMarkedBy")
-  attendanceAsStudent     AttendanceRecord[]      @relation("AttendanceStudent")
+  markedAttendance        AttendanceRecord[]   @relation("AttendanceMarkedBy")
+  attendanceAsStudent     AttendanceRecord[]   @relation("AttendanceStudent")
   enrollments             Enrollment[]
   videoProgress           VideoProgress[]
   certificates            Certificate[]
   scoreEvents             ScoreEvent[]
-  bookingsRequested       Booking[]               @relation("BookingRequester")
-  bookingsAsMentor        Booking[]               @relation("BookingMentor")
+  bookingsRequested       Booking[]            @relation("BookingRequester")
+  bookingsAsMentor        Booking[]            @relation("BookingMentor")
   notifications           Notification[]
   communityPosts          CommunityPost[]
-  eventsHosted            Event[]                 @relation("EventHost")
+  eventsHosted            Event[]              @relation("EventHost")
   eventRegistrations      EventRegistration[]
   accessRequestsMade      AccessRequest[]
   speakerTopics           SpeakerTopic[]
@@ -223,71 +228,83 @@ model User {
   teamMemberships         TeamMember[]
   communityMemberOf       CommunityMember[]
   communityVolunteerOf    CommunityVolunteer[]
-  postedProblemStatements ProblemStatement[]      @relation("ProblemStatementPostedBy")
+  postedProblemStatements ProblemStatement[]   @relation("ProblemStatementPostedBy")
   milestoneFeedbackGiven  MilestoneFeedback[]
 
   // Soft/nullable "assigned to" relations (SetNull — see §2)
-  coursesAsTrainer        Course[]                @relation("CourseTrainer")
-  sessionsAsTrainer       CourseSession[]         @relation("CourseSessionTrainer")
-  teamsAsMentor           Team[]                  @relation("TeamMentor")
-  teamsAsTrainer          Team[]                  @relation("TeamTrainer")
+  coursesAsTrainer  Course[]        @relation("CourseTrainer")
+  sessionsAsTrainer CourseSession[] @relation("CourseSessionTrainer")
+  teamsAsMentor     Team[]          @relation("TeamMentor")
+  teamsAsTrainer    Team[]          @relation("TeamTrainer")
 
   @@index([role])
 }
 
 model StudentProfile {
-  id             String   @id @default(cuid())
-  userId         String   @unique
-  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  collegeId      String?
-  college        College? @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  name           String
-  course         String?
-  mentorId       String?
-  mentor         MentorProfile? @relation(fields: [mentorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  builderScore   Int      @default(0)
-  skills         String[] @default([])
-  domain         String?
-  linkedIn       String?
+  id            String         @id @default(cuid())
+  userId        String         @unique
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collegeId     String?
+  college       College?       @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // Batch — reuses the existing Cohort model (no separate "Batch" entity);
+  // SetNull rather than Restrict/Cascade because archiving/deleting a batch
+  // must never take its students down with it — they simply become unbatched.
+  cohortId      String?
+  cohort        Cohort?        @relation(fields: [cohortId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // Institution-issued identifier (e.g. "21CS001") — scoped per-college, not
+  // globally and not per-cohort, since colleges reuse numbering schemes but
+  // a student moving batches shouldn't free up their number for reuse
+  // elsewhere at the same college. Null for self-registered/legacy students.
+  rollNumber    String?
+  name          String
+  course        String?
+  mentorId      String?
+  mentor        MentorProfile? @relation(fields: [mentorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  builderScore  Int            @default(0)
+  skills        String[]       @default([])
+  domain        String?
+  linkedIn      String?
   // Gamification — cosmetic only, does not feed builderScore.
-  currentStreak  Int      @default(0)
-  xp             Int      @default(0)
-  streakHistory  Boolean[] @default([])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  currentStreak Int            @default(0)
+  xp            Int            @default(0)
+  streakHistory Boolean[]      @default([])
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   teamMemberships TeamMember[]
 
+  @@unique([collegeId, rollNumber])
   // Talent Pool scoping/filter — mirrors Mongo compound index {collegeId,domain,builderScore desc}
   @@index([collegeId, domain, builderScore(sort: Desc)])
+  @@index([cohortId])
 }
 
 model MentorProfile {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  collegeId  String?
-  college    College? @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  expertise  String[] @default([])
-  bio        String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collegeId String?
+  college   College? @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  expertise String[] @default([])
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Derived — replaces Mongo's stored `assignedStudents[]` (see §0.3)
-  students   StudentProfile[]
+  students StudentProfile[]
 
   @@index([collegeId])
 }
 
 model TrainerProfile {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  collegeId  String?
-  college    College? @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  expertise  String[] @default([])
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  collegeId String?
+  college   College? @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  expertise String[] @default([])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // NOTE: `assignedTeams[]` deliberately dropped — derive via
   // `User.teamsAsTrainer` using this profile's `userId` (see §0.3).
@@ -296,15 +313,15 @@ model TrainerProfile {
 }
 
 model SpeakerProfile {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  topics        String[] @default([])
-  bio           String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  topics    String[] @default([])
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  pastSessions  SpeakerPastSession[]
+  pastSessions SpeakerPastSession[]
 }
 
 // Dormant join table (schema completeness — `pastSessions` is never read or
@@ -328,7 +345,7 @@ model HrProfile {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  placements     Placement[]
+  placements Placement[]
 }
 
 model SponsorProfile {
@@ -354,12 +371,12 @@ model CollegeProfile {
 }
 
 model CommunityLeaderProfile {
-  id         String   @id @default(cuid())
-  userId     String   @unique
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  orgName    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  orgName   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   members    CommunityMember[]
   volunteers CommunityVolunteer[]
@@ -434,71 +451,81 @@ model College {
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
 
-  users            User[]
-  studentProfiles  StudentProfile[]
-  mentorProfiles   MentorProfile[]
-  trainerProfiles  TrainerProfile[]
-  collegeProfiles  CollegeProfile[]
-  cohorts          Cohort[]
-  teams            Team[]
-  events           Event[]
+  users           User[]
+  studentProfiles StudentProfile[]
+  mentorProfiles  MentorProfile[]
+  trainerProfiles TrainerProfile[]
+  collegeProfiles CollegeProfile[]
+  cohorts         Cohort[]
+  teams           Team[]
+  events          Event[]
+  courses         Course[]
 }
 
 model Course {
-  id           String             @id @default(cuid())
-  title        String
-  description  String?
-  createdBy    String
-  courseAdmin  CourseAdminProfile @relation(fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  deliveryMode CourseDeliveryMode
+  id            String             @id @default(cuid())
+  title         String
+  description   String?
+  createdBy     String
+  courseAdmin   CourseAdminProfile @relation(fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // Null = existing global CourseAdmin catalog course (unchanged behavior).
+  // Non-null = a College Admin's own college-scoped course, visible only to
+  // that college's own members + ForgeAdmin, never other colleges' students.
+  // Unused until the College Admin course-creation phase lands — `createdBy`
+  // above still only ever points at a CourseAdminProfile until that phase's
+  // FK repoint (Course.createdBy -> User.id) also lands.
+  collegeId     String?
+  college       College?           @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  deliveryMode  CourseDeliveryMode
   durationHours Int
   durationDays  Int
-  price        Decimal            @db.Decimal(10, 2)
-  currency     String             @default("INR")
-  status       CourseStatus       @default(draft)
-  trainerId    String?
-  trainer      User?              @relation("CourseTrainer", fields: [trainerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
+  price         Decimal            @db.Decimal(10, 2)
+  currency      String             @default("INR")
+  status        CourseStatus       @default(draft)
+  trainerId     String?
+  trainer       User?              @relation("CourseTrainer", fields: [trainerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
 
-  syllabus     SyllabusDay[]
-  sessions     CourseSession[]
-  enrollments  Enrollment[]
-  assessments  Assessment[]
+  syllabus      SyllabusDay[]
+  sessions      CourseSession[]
+  enrollments   Enrollment[]
+  assessments   Assessment[]
   videoProgress VideoProgress[]
-  certificates Certificate[]
+  certificates  Certificate[]
 
   @@index([createdBy])
   @@index([trainerId])
   @@index([status, createdAt(sort: Desc)])
+  @@index([collegeId, status])
 }
 
 // Normalizes Course.syllabus[] (embedded subdocs).
 model SyllabusDay {
-  id              String  @id @default(cuid())
-  courseId        String
-  course          Course  @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  dayNumber       Int
-  title           String
-  description     String?
-  youtubeVideoId  String?
+  id             String  @id @default(cuid())
+  courseId       String
+  course         Course  @relation(fields: [courseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  dayNumber      Int
+  title          String
+  description    String?
+  youtubeVideoId String?
 
   @@unique([courseId, dayNumber])
 }
 
 model CourseSession {
-  id            String               @id @default(cuid())
+  id            String              @id @default(cuid())
   courseId      String
-  course        Course               @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  course        Course              @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   dayNumber     Int
   scheduledDate DateTime
   mode          CourseSessionMode
-  status        CourseSessionStatus  @default(scheduled)
+  status        CourseSessionStatus @default(scheduled)
   cancelReason  String?
   trainerId     String?
-  trainer       User?                @relation("CourseSessionTrainer", fields: [trainerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
+  trainer       User?               @relation("CourseSessionTrainer", fields: [trainerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
 
   attendanceRecords AttendanceRecord[]
 
@@ -506,38 +533,38 @@ model CourseSession {
 }
 
 model Enrollment {
-  id              String            @id @default(cuid())
+  id              String           @id @default(cuid())
   studentId       String
-  student         User              @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student         User             @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   courseId        String
-  course          Course            @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  status          EnrollmentStatus  @default(pending_payment)
+  course          Course           @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status          EnrollmentStatus @default(pending_payment)
   razorpayOrderId String?
   paymentRef      String?
-  paymentAmount   Decimal           @db.Decimal(10, 2)
-  enrolledAt      DateTime          @default(now())
+  paymentAmount   Decimal          @db.Decimal(10, 2)
+  enrolledAt      DateTime         @default(now())
   completedAt     DateTime?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
-  certificate     Certificate?
+  certificate Certificate?
 
   @@index([courseId])
   @@index([studentId, createdAt(sort: Desc)])
 }
 
 model AttendanceRecord {
-  id        String            @id @default(cuid())
+  id        String           @id @default(cuid())
   sessionId String
-  session   CourseSession     @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  session   CourseSession    @relation(fields: [sessionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   studentId String
-  student   User              @relation("AttendanceStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  student   User             @relation("AttendanceStudent", fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   status    AttendanceStatus
-  markedAt  DateTime          @default(now())
+  markedAt  DateTime         @default(now())
   markedBy  String
-  marker    User              @relation("AttendanceMarkedBy", fields: [markedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  marker    User             @relation("AttendanceMarkedBy", fields: [markedBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   @@unique([sessionId, studentId])
   @@index([studentId, markedAt(sort: Desc)])
@@ -574,20 +601,20 @@ model Assessment {
 }
 
 model Certificate {
-  id            String     @id @default(cuid())
-  studentId     String
-  student       User       @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  courseId      String
-  course        Course     @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  enrollmentId  String     @unique
-  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  courseTitle   String
-  issuingBody   String
-  token         String     @unique
-  pdfKey        String
-  issuedAt      DateTime   @default(now())
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String     @id @default(cuid())
+  studentId    String
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  courseId     String
+  course       Course     @relation(fields: [courseId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  enrollmentId String     @unique
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  courseTitle  String
+  issuingBody  String
+  token        String     @unique
+  pdfKey       String
+  issuedAt     DateTime   @default(now())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   @@index([studentId])
 }
@@ -607,27 +634,29 @@ model Cohort {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
+  students StudentProfile[]
+
   @@index([collegeId])
 }
 
 model Team {
-  id                 String   @id @default(cuid())
+  id                 String            @id @default(cuid())
   name               String
   collegeId          String
-  college            College  @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  college            College           @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   mentorId           String?
-  mentor             User?    @relation("TeamMentor", fields: [mentorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  mentor             User?             @relation("TeamMentor", fields: [mentorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   trainerId          String?
-  trainer            User?    @relation("TeamTrainer", fields: [trainerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  trainer            User?             @relation("TeamTrainer", fields: [trainerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // Real FK now — Mongo declared no `ref` here despite conceptually pointing
   // at ProblemStatement (a pre-existing inconsistency this migration fixes).
   problemStatementId String?
   problemStatement   ProblemStatement? @relation(fields: [problemStatementId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  members            TeamMember[]
-  sprints            Sprint[]
+  members              TeamMember[]
+  sprints              Sprint[]
   milestoneSubmissions MilestoneSubmission[]
   investorAccessGrant  InvestorAccessGrant?
 
@@ -637,34 +666,34 @@ model Team {
 // Normalizes Team.memberStudentIds[] (many-to-many, no derivable singular
 // FK on the other side — genuine join table, unlike assignedStudents/Teams).
 model TeamMember {
-  teamId        String
-  team          Team           @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  studentUserId String
-  student       User           @relation(fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  teamId           String
+  team             Team            @relation(fields: [teamId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  studentUserId    String
+  student          User            @relation(fields: [studentUserId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   studentProfileId String?
   studentProfile   StudentProfile? @relation(fields: [studentProfileId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt     DateTime       @default(now())
+  createdAt        DateTime        @default(now())
 
   @@id([teamId, studentUserId])
 }
 
 model ProblemStatement {
-  id             String                     @id @default(cuid())
-  title          String
-  description    String
-  overview       String?
-  source         ProblemStatementSource
-  domain         String
-  tags           String[]                   @default([])
-  teamSize       Int
-  durationWeeks  Int
-  difficulty     ProblemStatementDifficulty
-  status         ProblemStatementStatus     @default(open)
-  featured       Boolean                    @default(false)
-  postedBy       String?
-  postedByUser   User?                      @relation("ProblemStatementPostedBy", fields: [postedBy], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  createdAt      DateTime                   @default(now())
-  updatedAt      DateTime                   @updatedAt
+  id            String                     @id @default(cuid())
+  title         String
+  description   String
+  overview      String?
+  source        ProblemStatementSource
+  domain        String
+  tags          String[]                   @default([])
+  teamSize      Int
+  durationWeeks Int
+  difficulty    ProblemStatementDifficulty
+  status        ProblemStatementStatus     @default(open)
+  featured      Boolean                    @default(false)
+  postedBy      String?
+  postedByUser  User?                      @relation("ProblemStatementPostedBy", fields: [postedBy], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
 
   deliverables        ProblemStatementDeliverable[]
   teams               Team[]
@@ -698,7 +727,7 @@ model Sprint {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  tasks               SprintTask[]
+  tasks                SprintTask[]
   milestoneSubmissions MilestoneSubmission[]
 
   @@unique([teamId, cycleNumber])
@@ -865,8 +894,8 @@ model Event {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  registrations   EventRegistration[]
-  accessRequests  AccessRequest[]
+  registrations  EventRegistration[]
+  accessRequests AccessRequest[]
 
   @@index([scheduledAt])
 }
@@ -886,29 +915,29 @@ model EventRegistration {
 // because accessRequest.service.ts looks these up via findById(requestId).
 // No updatedAt.
 model AccessRequest {
-  id          String               @id @default(cuid())
+  id          String              @id @default(cuid())
   requesterId String
-  requester   User                 @relation(fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  requester   User                @relation(fields: [requesterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   eventId     String
-  event       Event                @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  status      AccessRequestStatus  @default(pending)
-  requestedAt DateTime             @default(now())
+  event       Event               @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  status      AccessRequestStatus @default(pending)
+  requestedAt DateTime            @default(now())
   decidedAt   DateTime?
 
   @@unique([requesterId, eventId])
 }
 
 model SpeakerTopic {
-  id          String              @id @default(cuid())
+  id          String             @id @default(cuid())
   speakerId   String
-  speaker     User                @relation(fields: [speakerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  speaker     User               @relation(fields: [speakerId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   title       String
   description String?
-  status      SpeakerTopicStatus  @default(proposed)
+  status      SpeakerTopicStatus @default(proposed)
   scheduledAt DateTime?
   venue       String?
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   @@index([speakerId])
 }

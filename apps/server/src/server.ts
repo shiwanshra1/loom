@@ -4,6 +4,7 @@ import { connectPrisma } from './config/prisma.js';
 import { ensureBucketExists } from './config/s3.js';
 import { startCitadelWorker } from './jobs/citadelWorker.js';
 import { startScoreWorker } from './jobs/scoreWorker.js';
+import { startWelcomeEmailWorker } from './jobs/welcomeEmailWorker.js';
 
 async function main(): Promise<void> {
   await connectPrisma();
@@ -13,6 +14,7 @@ async function main(): Promise<void> {
   // splitting workers into their own process is a scaling concern for later.
   startCitadelWorker();
   startScoreWorker();
+  startWelcomeEmailWorker();
 
   const app = createApp();
   app.listen(env.port, () => {
