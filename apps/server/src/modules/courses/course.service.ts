@@ -24,23 +24,12 @@ const ALLOWED_STATUS_TRANSITIONS: Record<CourseStatus, CourseStatus[]> = {
 
 const SYLLABUS_INCLUDE = { syllabus: { orderBy: { dayNumber: 'asc' as const } } };
 
-async function getOwnCourseAdminProfile(userId: string) {
-  const profile = await prisma.courseAdminProfile.findUnique({ where: { userId } });
-  if (!profile) {
-    throw new ApiError(404, 'Course admin profile not found');
-  }
-  return profile;
-}
-
-async function getOwnedCourse(
-  courseId: string,
-  courseAdminProfileId: string
-): Promise<CourseWithSyllabus> {
+async function getOwnedCourse(courseId: string, userId: string): Promise<CourseWithSyllabus> {
   const course = await prisma.course.findUnique({ where: { id: courseId }, include: SYLLABUS_INCLUDE });
   if (!course) {
     throw new ApiError(404, 'Course not found');
   }
-  if (course.createdBy !== courseAdminProfileId) {
+  if (course.createdBy !== userId) {
     throw new ApiError(403, 'You do not have access to this course');
   }
   return course;
@@ -60,8 +49,6 @@ export async function createCourse(
   userId: string,
   input: CreateCourseInput
 ): Promise<CourseWithSyllabus> {
-  const profile = await getOwnCourseAdminProfile(userId);
-
   const syllabus = (input.syllabus ?? []).map((day) => ({
     dayNumber: day.dayNumber,
     title: day.title,
@@ -75,7 +62,7 @@ export async function createCourse(
     data: {
       title: input.title,
       description: input.description,
-      createdBy: profile.id,
+      createdBy: userId,
       deliveryMode: input.deliveryMode,
       durationHours: input.durationHours,
       durationDays: input.durationDays,
@@ -94,8 +81,7 @@ export async function updateCourse(
   courseId: string,
   input: UpdateCourseInput
 ): Promise<CourseWithSyllabus> {
-  const profile = await getOwnCourseAdminProfile(userId);
-  await getOwnedCourse(courseId, profile.id);
+  await getOwnedCourse(courseId, userId);
 
   const trainerId =
     input.trainerEmail !== undefined ? await resolveTrainerId(input.trainerEmail) : undefined;
@@ -140,8 +126,7 @@ export async function updateCourseStatus(
   courseId: string,
   nextStatus: CourseStatus
 ): Promise<CourseWithSyllabus> {
-  const profile = await getOwnCourseAdminProfile(userId);
-  const course = await getOwnedCourse(courseId, profile.id);
+  const course = await getOwnedCourse(courseId, userId);
 
   const allowed = ALLOWED_STATUS_TRANSITIONS[course.status as CourseStatus];
   if (!allowed.includes(nextStatus)) {
@@ -156,9 +141,8 @@ export async function updateCourseStatus(
 }
 
 export async function listMyCourses(userId: string): Promise<CourseWithSyllabus[]> {
-  const profile = await getOwnCourseAdminProfile(userId);
   return prisma.course.findMany({
-    where: { createdBy: profile.id },
+    where: { createdBy: userId },
     orderBy: { createdAt: 'desc' },
     include: SYLLABUS_INCLUDE,
   });
@@ -214,12 +198,11 @@ export async function getCourseById(
     return course;
   }
 
-  // Non-published courses are only visible to the course_admin who owns them.
-  if (viewer.role === 'course_admin') {
-    const profile = await prisma.courseAdminProfile.findUnique({ where: { userId: viewer.userId } });
-    if (profile && course.createdBy === profile.id) {
-      return course;
-    }
+  // Non-published courses are only visible to the course_admin who owns
+  // them. (Phase 8 of the Forge Admin hierarchy work will widen this to
+  // college_admin once College Admins can create courses too.)
+  if (viewer.role === 'course_admin' && course.createdBy === viewer.userId) {
+    return course;
   }
 
   throw new ApiError(404, 'Course not found');

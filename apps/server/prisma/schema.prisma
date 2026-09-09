@@ -231,6 +231,10 @@ model User {
   postedProblemStatements ProblemStatement[]   @relation("ProblemStatementPostedBy")
   milestoneFeedbackGiven  MilestoneFeedback[]
 
+  // Restrict — a course can't lose its creator out from under it (matches
+  // the CourseAdminProfile-owned FK this repointed from — see Course model).
+  coursesCreated Course[] @relation("CourseCreator")
+
   // Soft/nullable "assigned to" relations (SetNull — see §2)
   coursesAsTrainer  Course[]        @relation("CourseTrainer")
   sessionsAsTrainer CourseSession[] @relation("CourseSessionTrainer")
@@ -435,8 +439,6 @@ model CourseAdminProfile {
   department String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-
-  coursesCreated Course[]
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -466,14 +468,17 @@ model Course {
   id            String             @id @default(cuid())
   title         String
   description   String?
+  // Points at User.id, not CourseAdminProfile.id — repointed here so College
+  // Admins (who have no CourseAdminProfile row) can also create courses.
+  // Was a 3-step migration (createdByUserId -> createdBy, backfilled via
+  // scripts/backfillCourseCreator.ts, now deleted) — see
+  // docs/forge-admin-hierarchy-tickets.md Phase 3.
   createdBy     String
-  courseAdmin   CourseAdminProfile @relation(fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  creator       User               @relation("CourseCreator", fields: [createdBy], references: [id], onDelete: Restrict, onUpdate: Cascade)
   // Null = existing global CourseAdmin catalog course (unchanged behavior).
   // Non-null = a College Admin's own college-scoped course, visible only to
   // that college's own members + ForgeAdmin, never other colleges' students.
-  // Unused until the College Admin course-creation phase lands — `createdBy`
-  // above still only ever points at a CourseAdminProfile until that phase's
-  // FK repoint (Course.createdBy -> User.id) also lands.
+  // Unused until the College Admin course-creation phase (Phase 8) lands.
   collegeId     String?
   college       College?           @relation(fields: [collegeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   deliveryMode  CourseDeliveryMode

@@ -29,13 +29,13 @@ describe('attendance marking', () => {
     const { user: outsiderUser } = await createTestUser(Role.Student);
     const { user: adminUser } = await createTestUser(Role.CourseAdmin);
 
-    const adminProfile = await prisma.courseAdminProfile.create({
+    await prisma.courseAdminProfile.create({
       data: { userId: adminUser.id, name: 'Attendance Test Admin' },
     });
     const course = await prisma.course.create({
       data: {
         title: 'Offline Attendance Course',
-        createdBy: adminProfile.id,
+        createdBy: adminUser.id,
         deliveryMode: 'offline',
         durationHours: 10,
         durationDays: 1,
@@ -122,13 +122,13 @@ describe('attendance marking', () => {
     const { user: adminUser } = await createTestUser(Role.CourseAdmin);
     const { email: studentEmail, password: studentPw } = await createTestUser(Role.Student);
 
-    const adminProfile = await prisma.courseAdminProfile.create({
+    await prisma.courseAdminProfile.create({
       data: { userId: adminUser.id, name: 'Another Admin' },
     });
     const course = await prisma.course.create({
       data: {
         title: 'Blocked Attendance Course',
-        createdBy: adminProfile.id,
+        createdBy: adminUser.id,
         deliveryMode: 'offline',
         durationHours: 1,
         durationDays: 1,

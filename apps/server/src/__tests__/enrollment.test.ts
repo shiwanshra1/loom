@@ -35,13 +35,13 @@ afterAll(async () => {
 
 async function createPublishedCourse(price: number) {
   const { user: adminUser } = await createTestUser(Role.CourseAdmin);
-  const adminProfile = await prisma.courseAdminProfile.create({
+  await prisma.courseAdminProfile.create({
     data: { userId: adminUser.id, name: 'Test Course Admin' },
   });
   return prisma.course.create({
     data: {
       title: 'Test Course',
-      createdBy: adminProfile.id,
+      createdBy: adminUser.id,
       deliveryMode: 'online',
       durationHours: 10,
       durationDays: 5,

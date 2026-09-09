@@ -24,9 +24,8 @@ export function isCourseTrainer(course: Course, userId: string): boolean {
   return course.trainerId === userId;
 }
 
-export async function isCourseAdminOwner(course: Course, userId: string): Promise<boolean> {
-  const profile = await prisma.courseAdminProfile.findUnique({ where: { userId } });
-  return Boolean(profile && course.createdBy === profile.id);
+export function isCourseAdminOwner(course: Course, userId: string): boolean {
+  return course.createdBy === userId;
 }
 
 export async function isEnrolledStudent(course: Course, userId: string): Promise<boolean> {
