@@ -8,6 +8,7 @@ import { ROLE_HOME_PATH } from './auth/roleHome';
 import { AppShell } from './layout/AppShell';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
+import { ForcedPasswordChangePage } from './pages/auth/ForcedPasswordChangePage';
 import { HomePage } from './pages/student/HomePage';
 import { CoursesPage } from './pages/student/CoursesPage';
 import { CatalogPage } from './pages/student/CatalogPage';
@@ -85,6 +86,7 @@ export function App() {
           <Route path="/verify/:token" element={<VerifyCertificatePage />} />
 
           <Route element={<RequireAuth />}>
+            <Route path="/change-password" element={<ForcedPasswordChangePage />} />
             <Route element={<AppShell />}>
               {roleSection(
                 Role.Student,

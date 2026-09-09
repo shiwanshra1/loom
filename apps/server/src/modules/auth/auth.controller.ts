@@ -1,6 +1,12 @@
 import type { CookieOptions, Request, Response } from 'express';
-import { registerSchema, loginSchema } from './auth.validation.js';
-import { registerUser, loginUser, refreshSession, logoutUser } from './auth.service.js';
+import { registerSchema, loginSchema, changePasswordSchema } from './auth.validation.js';
+import {
+  registerUser,
+  loginUser,
+  refreshSession,
+  logoutUser,
+  changePassword as changePasswordService,
+} from './auth.service.js';
 import { toPublicUser } from './auth.mapper.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { prisma } from '../../config/prisma.js';
@@ -52,6 +58,18 @@ export async function logout(req: Request, res: Response): Promise<void> {
 
   res.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
   res.status(204).send();
+}
+
+export async function changePassword(req: Request, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ApiError(401, 'Not authenticated');
+  }
+
+  const input = changePasswordSchema.parse(req.body);
+  const { user, tokens } = await changePasswordService(req.user.userId, input);
+
+  res.cookie(REFRESH_COOKIE, tokens.refreshToken, refreshCookieOptions);
+  res.json({ user: toPublicUser(user), accessToken: tokens.accessToken });
 }
 
 export async function me(req: Request, res: Response): Promise<void> {

@@ -9,6 +9,10 @@ export interface PublicUser {
   role: Role;
   status: UserStatus;
   collegeId?: string;
+  // True for admin-provisioned accounts (single-create or CSV-bulk) that
+  // haven't changed their system-generated temp password yet — the client
+  // gates the entire app behind a forced password-change screen while true.
+  mustChangePassword: boolean;
   createdAt: string;
   lastLoginAt?: string;
 }

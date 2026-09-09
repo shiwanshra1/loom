@@ -19,6 +19,11 @@ export interface LoginPayload {
   password: string;
 }
 
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export async function registerRequest(payload: RegisterPayload): Promise<PublicUser> {
   const data = await apiRequest<AuthResponse>('/api/auth/register', {
     method: 'POST',
@@ -41,5 +46,14 @@ export async function logoutRequest(): Promise<void> {
 
 export async function fetchCurrentUser(): Promise<PublicUser> {
   const data = await apiRequest<{ user: PublicUser }>('/api/auth/me');
+  return data.user;
+}
+
+export async function changePasswordRequest(payload: ChangePasswordPayload): Promise<PublicUser> {
+  const data = await apiRequest<AuthResponse>('/api/auth/change-password', {
+    method: 'POST',
+    body: payload,
+  });
+  setAccessToken(data.accessToken);
   return data.user;
 }

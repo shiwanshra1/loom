@@ -12,6 +12,7 @@ export function toPublicUser(user: User): PublicUser {
     role: user.role as unknown as Role,
     status: user.status as unknown as UserStatus,
     collegeId: user.collegeId ?? undefined,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt.toISOString(),
     lastLoginAt: user.lastLoginAt?.toISOString(),
   };

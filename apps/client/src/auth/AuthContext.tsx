@@ -6,8 +6,10 @@ import {
   loginRequest,
   logoutRequest,
   registerRequest,
+  changePasswordRequest,
   type LoginPayload,
   type RegisterPayload,
+  type ChangePasswordPayload,
 } from '../lib/authApi';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
@@ -18,6 +20,7 @@ interface AuthContextValue {
   login: (payload: LoginPayload) => Promise<PublicUser>;
   register: (payload: RegisterPayload) => Promise<PublicUser>;
   logout: () => Promise<void>;
+  changePassword: (payload: ChangePasswordPayload) => Promise<PublicUser>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -75,8 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('unauthenticated');
   }
 
+  // Updates `user.mustChangePassword` locally from the response rather than
+  // re-fetching /me — RequireAuth's redirect gate reads this field directly,
+  // so it needs to flip immediately once the change succeeds.
+  async function changePassword(payload: ChangePasswordPayload): Promise<PublicUser> {
+    const updatedUser = await changePasswordRequest(payload);
+    setUser(updatedUser);
+    return updatedUser;
+  }
+
   return (
-    <AuthContext.Provider value={{ status, user, login, register, logout }}>
+    <AuthContext.Provider value={{ status, user, login, register, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );

@@ -11,7 +11,7 @@ import {
 import { createProfileForRole } from './profileFactory.js';
 import { resolveCollegeIdForRegistration } from './collegeProvisioning.js';
 import { ApiError } from '../../utils/ApiError.js';
-import type { RegisterInput, LoginInput } from './auth.validation.js';
+import type { RegisterInput, LoginInput, ChangePasswordInput } from './auth.validation.js';
 
 interface IssuedTokens {
   accessToken: string;
@@ -109,4 +109,38 @@ export async function refreshSession(refreshToken: string): Promise<IssuedTokens
 
 export async function logoutUser(userId: string, version: number): Promise<void> {
   await revokeRefreshToken(userId, version);
+}
+
+export async function changePassword(
+  userId: string,
+  input: ChangePasswordInput
+): Promise<{ user: User; tokens: IssuedTokens }> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) {
+    throw new ApiError(404, 'User not found');
+  }
+
+  const currentMatches = await comparePassword(input.currentPassword, user.passwordHash);
+  if (!currentMatches) {
+    throw new ApiError(401, 'Current password is incorrect');
+  }
+
+  const passwordHash = await hashPassword(input.newPassword);
+  // Bumping refreshTokenVersion invalidates every other session's refresh
+  // token immediately (refreshSession rejects any token whose embedded
+  // version no longer matches the DB) — the point of a password change.
+  // That also orphans *this* request's own refresh token, so we reissue
+  // fresh tokens below rather than leaving the caller logged out by the
+  // very action they just took.
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash,
+      mustChangePassword: false,
+      refreshTokenVersion: { increment: 1 },
+    },
+  });
+
+  const tokens = await issueTokens(updated);
+  return { user: updated, tokens };
 }
