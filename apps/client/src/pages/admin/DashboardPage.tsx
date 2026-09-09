@@ -64,7 +64,7 @@ export function DashboardPage() {
 
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold text-slate-900">Forge Admin</h1>
+      <h1 className="mb-1 text-xl font-semibold text-slate-900">Super Winnovation Admin</h1>
       <p className="mb-6 text-sm text-slate-500">
         Cross-college oversight, user management, and cohort phases.
       </p>

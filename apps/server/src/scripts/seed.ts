@@ -28,7 +28,15 @@ const SEED_ACCOUNTS: SeedAccount[] = [
   { email: 'member1@forgeloom.dev', displayName: 'Member One', role: Role.Member },
   // forge_admin and course_admin are intentionally excluded from the public
   // /register endpoint — this script is the sanctioned "seeded manually" path.
-  { email: 'admin1@forgeloom.dev', displayName: 'Forge Admin', role: Role.ForgeAdmin },
+  // The top-level Forge Admin is branded "Super Winnovation Admin" — there's
+  // no display-name field for ForgeAdmin anywhere in the schema (no profile
+  // table, see profileFactory.ts's no-op case), so the identity lives in the
+  // email address and in the client's hardcoded dashboard heading instead.
+  {
+    email: 'superadmin@winnovation.org',
+    displayName: 'Super Winnovation Admin',
+    role: Role.ForgeAdmin,
+  },
   { email: 'course_admin1@forgeloom.dev', displayName: 'Course Admin One', role: Role.CourseAdmin },
 ];
 
