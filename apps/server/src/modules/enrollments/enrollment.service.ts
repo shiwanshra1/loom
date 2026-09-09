@@ -30,13 +30,18 @@ const BLOCKED_REENROLL_STATUSES = ['active', 'completed'] as const;
 
 export async function createEnrollment(
   studentId: string,
+  studentCollegeId: string | undefined,
   courseId: string
 ): Promise<EnrollmentWithOrder> {
   const course = await prisma.course.findFirst({
     where: { id: courseId, status: 'published' },
     include: SYLLABUS_INCLUDE,
   });
-  if (!course) {
+  // A college-scoped course (Phase 8) 404s for a student outside that
+  // college — same "not visible to you" treatment as course.service.ts's
+  // getCourseById, so its existence isn't leaked via the enroll endpoint
+  // either even if the courseId was guessed or shared.
+  if (!course || (course.collegeId && course.collegeId !== studentCollegeId)) {
     throw new ApiError(404, 'Course not found');
   }
 

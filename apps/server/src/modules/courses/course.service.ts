@@ -45,8 +45,13 @@ async function resolveTrainerId(trainerEmail: string): Promise<string> {
   return trainer.id;
 }
 
+// collegeId is null for the CourseAdmin variant (stays in the global
+// catalog, unchanged since Phase 1/2) and forced to the caller's own
+// college for the CollegeAdmin variant (Phase 8) — resolved by the
+// controller from the session, never trusted from the request body.
 export async function createCourse(
   userId: string,
+  collegeId: string | null,
   input: CreateCourseInput
 ): Promise<CourseWithSyllabus> {
   const syllabus = (input.syllabus ?? []).map((day) => ({
@@ -63,6 +68,7 @@ export async function createCourse(
       title: input.title,
       description: input.description,
       createdBy: userId,
+      collegeId,
       deliveryMode: input.deliveryMode,
       durationHours: input.durationHours,
       durationDays: input.durationDays,
@@ -161,12 +167,34 @@ export interface CourseListPage {
   nextCursor: string | null;
 }
 
-export async function listPublishedCourses(query: ListCoursesQuery): Promise<CourseListPage> {
+export interface CourseCatalogViewer {
+  role: string;
+  collegeId?: string;
+}
+
+// A college-scoped course (collegeId set, Phase 8) is visible only to that
+// college's own members and Forge Admin — never other colleges' students,
+// even once published. A course with collegeId: null (the pre-Phase-8
+// global CourseAdmin catalog) stays visible to everyone, unchanged.
+function catalogVisibilityFilter(viewer: CourseCatalogViewer) {
+  if (viewer.role === Role.ForgeAdmin) {
+    return {};
+  }
+  return {
+    OR: [{ collegeId: null }, ...(viewer.collegeId ? [{ collegeId: viewer.collegeId }] : [])],
+  };
+}
+
+export async function listPublishedCourses(
+  query: ListCoursesQuery,
+  viewer: CourseCatalogViewer
+): Promise<CourseListPage> {
   const limit = query.limit ?? 20;
 
   const rows = await prisma.course.findMany({
     where: {
       status: 'published',
+      ...catalogVisibilityFilter(viewer),
       ...(query.deliveryMode && { deliveryMode: query.deliveryMode }),
       ...(query.cursor && { createdAt: { lt: new Date(query.cursor) } }),
     },
@@ -187,21 +215,34 @@ export async function listPublishedCourses(query: ListCoursesQuery): Promise<Cou
 
 export async function getCourseById(
   courseId: string,
-  viewer: { userId: string; role: string }
+  viewer: { userId: string; role: string; collegeId?: string }
 ): Promise<CourseWithSyllabus> {
   const course = await prisma.course.findUnique({ where: { id: courseId }, include: SYLLABUS_INCLUDE });
   if (!course) {
     throw new ApiError(404, 'Course not found');
   }
 
+  const visibleToViewersCollege =
+    !course.collegeId || viewer.role === Role.ForgeAdmin || course.collegeId === viewer.collegeId;
+
   if (course.status === 'published') {
+    // A college-scoped course is a 404, not just "not returned", to a
+    // viewer outside that college — same as any other not-visible-to-you
+    // resource in this codebase, so its existence isn't leaked either.
+    if (!visibleToViewersCollege) {
+      throw new ApiError(404, 'Course not found');
+    }
     return course;
   }
 
-  // Non-published courses are only visible to the course_admin who owns
-  // them. (Phase 8 of the Forge Admin hierarchy work will widen this to
-  // college_admin once College Admins can create courses too.)
-  if (viewer.role === 'course_admin' && course.createdBy === viewer.userId) {
+  // Non-published courses are only visible to the course_admin/college_admin
+  // who owns them — ownership (createdBy) already implies the right college
+  // for a college_admin-created course, so no separate collegeId check is
+  // needed on this branch.
+  if (
+    (viewer.role === Role.CourseAdmin || viewer.role === Role.CollegeAdmin) &&
+    course.createdBy === viewer.userId
+  ) {
     return course;
   }
 

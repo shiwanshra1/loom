@@ -66,6 +66,7 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
     { label: 'Batches', path: '/college/batches', icon: Layers },
     { label: 'Students', path: '/college/students', icon: Users },
     { label: 'Faculty', path: '/college/faculty', icon: GraduationCap },
+    { label: 'Courses', path: '/college/courses', icon: BookOpen },
   ],
   [Role.CommunityLeader]: [
     { label: 'Dashboard', path: ROLE_HOME_PATH[Role.CommunityLeader], icon: UsersRound },

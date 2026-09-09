@@ -25,6 +25,7 @@ export async function create(req: Request, res: Response): Promise<void> {
   const { courseId } = createEnrollmentSchema.parse(req.body);
   const { enrollment, course, order } = await enrollmentService.createEnrollment(
     user.userId,
+    user.collegeId,
     courseId
   );
   res.status(201).json({

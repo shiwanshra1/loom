@@ -23,7 +23,12 @@ export const courseRouter = Router();
 // Any authenticated role can browse/read published courses (catalog use case,
 // Phase 2) — only mutation and the "mine"/"teaching" listings are role-scoped.
 courseRouter.get('/', authenticate, asyncHandler(list));
-courseRouter.get('/mine', authenticate, authorize(Role.CourseAdmin), asyncHandler(listMine));
+courseRouter.get(
+  '/mine',
+  authenticate,
+  authorize(Role.CourseAdmin, Role.CollegeAdmin),
+  asyncHandler(listMine)
+);
 courseRouter.get('/teaching', authenticate, authorize(Role.Trainer), asyncHandler(listTeaching));
 courseRouter.get('/:id/sessions', authenticate, asyncHandler(listSessions));
 courseRouter.get('/:id/roster', authenticate, authorize(Role.Trainer), asyncHandler(getRoster));
@@ -31,11 +36,24 @@ courseRouter.get('/:id/assessments', authenticate, asyncHandler(listAssessments)
 courseRouter.post('/:id/assessments', authenticate, asyncHandler(createAssessment));
 courseRouter.get('/:id', authenticate, asyncHandler(getOne));
 
-courseRouter.post('/', authenticate, authorize(Role.CourseAdmin), asyncHandler(create));
-courseRouter.patch('/:id', authenticate, authorize(Role.CourseAdmin), asyncHandler(update));
+// College Admin can create courses scoped to their own college (Forge Admin
+// hierarchy Phase 8) — the controller forces collegeId from their session;
+// the Course Admin variant is unchanged (collegeId stays null, global catalog).
+courseRouter.post(
+  '/',
+  authenticate,
+  authorize(Role.CourseAdmin, Role.CollegeAdmin),
+  asyncHandler(create)
+);
+courseRouter.patch(
+  '/:id',
+  authenticate,
+  authorize(Role.CourseAdmin, Role.CollegeAdmin),
+  asyncHandler(update)
+);
 courseRouter.patch(
   '/:id/status',
   authenticate,
-  authorize(Role.CourseAdmin),
+  authorize(Role.CourseAdmin, Role.CollegeAdmin),
   asyncHandler(updateStatus)
 );

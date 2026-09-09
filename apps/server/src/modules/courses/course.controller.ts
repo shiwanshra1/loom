@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { Role } from '@forge-loom/shared-types';
 import { ApiError } from '../../utils/ApiError.js';
 import {
   createCourseSchema,
@@ -27,7 +28,16 @@ function requireParam(req: Request, name: string): string {
 export async function create(req: Request, res: Response): Promise<void> {
   const user = requireUser(req);
   const input = createCourseSchema.parse(req.body);
-  const course = await courseService.createCourse(user.userId, input);
+
+  let collegeId: string | null = null;
+  if (user.role === Role.CollegeAdmin) {
+    if (!user.collegeId) {
+      throw new ApiError(403, 'This account is not associated with a college');
+    }
+    collegeId = user.collegeId;
+  }
+
+  const course = await courseService.createCourse(user.userId, collegeId, input);
   res.status(201).json({ course: toCourseDto(course) });
 }
 
@@ -56,8 +66,9 @@ export async function listMine(req: Request, res: Response): Promise<void> {
 }
 
 export async function list(req: Request, res: Response): Promise<void> {
+  const user = requireUser(req);
   const query = listCoursesQuerySchema.parse(req.query);
-  const page = await courseService.listPublishedCourses(query);
+  const page = await courseService.listPublishedCourses(query, user);
   res.json({ courses: page.courses.map(toCourseDto), nextCursor: page.nextCursor });
 }
 

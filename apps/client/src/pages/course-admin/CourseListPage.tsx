@@ -24,7 +24,14 @@ const STATUS_BADGE: Record<CourseStatus, { tone: 'slate' | 'green' | 'blue'; lab
   archived: { tone: 'blue', label: 'Archived' },
 };
 
-export function CourseListPage() {
+interface CourseListPageProps {
+  // Lets College Admin's CoursesPage.tsx reuse this exact component/pattern
+  // (Forge Admin hierarchy Phase 8) while linking into its own route tree
+  // instead of /course-admin's.
+  basePath?: string;
+}
+
+export function CourseListPage({ basePath = '/course-admin' }: CourseListPageProps) {
   const { data: courses, isLoading } = useMyCourses();
   const [tab, setTab] = useState<TabValue>('all');
 
@@ -44,7 +51,7 @@ export function CourseListPage() {
           <h1 className="text-xl font-semibold text-slate-900">My Courses</h1>
           <p className="text-sm text-slate-500">Create and manage your courses.</p>
         </div>
-        <Link to="/course-admin/courses/new">
+        <Link to={`${basePath}/courses/new`}>
           <Button>
             <Plus size={16} /> New Course
           </Button>
@@ -66,7 +73,7 @@ export function CourseListPage() {
             return (
               <Link
                 key={course.id}
-                to={`/course-admin/courses/${course.id}/edit`}
+                to={`${basePath}/courses/${course.id}/edit`}
                 className="flex items-center gap-4 py-4 first:pt-0 last:pb-0 hover:bg-slate-50"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">

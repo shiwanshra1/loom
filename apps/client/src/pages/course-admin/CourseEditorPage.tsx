@@ -18,7 +18,14 @@ function renumber(days: SyllabusDayDto[]): SyllabusDayDto[] {
   return days.map((day, index) => ({ ...day, dayNumber: index + 1 }));
 }
 
-export function CourseEditorPage() {
+interface CourseEditorPageProps {
+  // Lets College Admin's CourseEditorPage.tsx reuse this exact component
+  // (Forge Admin hierarchy Phase 8) while navigating within its own route
+  // tree instead of /course-admin's.
+  basePath?: string;
+}
+
+export function CourseEditorPage({ basePath = '/course-admin' }: CourseEditorPageProps) {
   const { id } = useParams<{ id: string }>();
   const isEditing = Boolean(id);
   const navigate = useNavigate();
@@ -106,7 +113,7 @@ export function CourseEditorPage() {
         setSaved(true);
       } else {
         const course = await createCourse.mutateAsync(input);
-        navigate(`/course-admin/courses/${course.id}/edit`, { replace: true });
+        navigate(`${basePath}/courses/${course.id}/edit`, { replace: true });
       }
     } catch {
       setError('Could not save the course. Please check the fields and try again.');

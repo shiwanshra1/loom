@@ -38,6 +38,8 @@ import { DashboardPage as CollegeDashboardPage } from './pages/college/Dashboard
 import { BatchesPage as CollegeBatchesPage } from './pages/college/BatchesPage';
 import { StudentsPage as CollegeStudentsPage } from './pages/college/StudentsPage';
 import { FacultyPage as CollegeFacultyPage } from './pages/college/FacultyPage';
+import { CoursesPage as CollegeCoursesPage } from './pages/college/CoursesPage';
+import { CourseEditorPage as CollegeCourseEditorPage } from './pages/college/CourseEditorPage';
 import { DashboardPage as CommunityDashboardPage } from './pages/community/DashboardPage';
 import { DashboardPage as MediaDashboardPage } from './pages/media/DashboardPage';
 import { DashboardPage as MemberDashboardPage } from './pages/member/DashboardPage';
@@ -148,6 +150,9 @@ export function App() {
                   <Route path="batches" element={<CollegeBatchesPage />} />
                   <Route path="students" element={<CollegeStudentsPage />} />
                   <Route path="faculty" element={<CollegeFacultyPage />} />
+                  <Route path="courses" element={<CollegeCoursesPage />} />
+                  <Route path="courses/new" element={<CollegeCourseEditorPage />} />
+                  <Route path="courses/:id/edit" element={<CollegeCourseEditorPage />} />
                 </>
               )}
               {roleSection(
