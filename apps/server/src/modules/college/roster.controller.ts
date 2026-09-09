@@ -1,9 +1,18 @@
 import type { Request, Response } from 'express';
 import { Role } from '@forge-loom/shared-types';
 import { ApiError } from '../../utils/ApiError.js';
-import { createRosterMemberSchema, updateStudentBatchSchema } from './roster.validation.js';
+import {
+  bulkCreateStudentsSchema,
+  createRosterMemberSchema,
+  sendWelcomeEmailsSchema,
+  updateStudentBatchSchema,
+} from './roster.validation.js';
 import * as rosterService from './roster.service.js';
-import { toCreateRosterMemberResultDto, toRosterStudentDto } from './roster.mapper.js';
+import {
+  toBulkCreateStudentsResultDto,
+  toCreateRosterMemberResultDto,
+  toRosterStudentDto,
+} from './roster.mapper.js';
 
 function requireCollegeId(req: Request): string {
   if (!req.user) {
@@ -55,4 +64,20 @@ export async function updateStudentBatch(req: Request, res: Response): Promise<v
   const input = updateStudentBatchSchema.parse(req.body);
   const row = await rosterService.updateStudentBatch(collegeId, studentUserId, input);
   res.json({ student: toRosterStudentDto(row) });
+}
+
+export async function bulkCreateStudents(req: Request, res: Response): Promise<void> {
+  const collegeId = requireCollegeId(req);
+  const input = bulkCreateStudentsSchema.parse(req.body);
+  const results = await rosterService.bulkCreateStudents(collegeId, input.rows);
+  // 207 Multi-Status — the request as a whole succeeded, but individual rows
+  // may have failed; the per-row results carry the real outcome.
+  res.status(207).json(toBulkCreateStudentsResultDto(results));
+}
+
+export async function sendWelcomeEmails(req: Request, res: Response): Promise<void> {
+  const collegeId = requireCollegeId(req);
+  const input = sendWelcomeEmailsSchema.parse(req.body);
+  const result = await rosterService.sendWelcomeEmails(collegeId, input.accounts);
+  res.json(result);
 }

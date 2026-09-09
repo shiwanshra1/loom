@@ -4,10 +4,12 @@ import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import {
+  bulkCreateStudents,
   createMentor,
   createStudent,
   createTrainer,
   listStudents,
+  sendWelcomeEmails,
   updateStudentBatch,
 } from './roster.controller.js';
 
@@ -20,6 +22,18 @@ rosterRouter.post(
   asyncHandler(createStudent)
 );
 rosterRouter.get('/students', authenticate, authorize(Role.CollegeAdmin), asyncHandler(listStudents));
+rosterRouter.post(
+  '/students/bulk',
+  authenticate,
+  authorize(Role.CollegeAdmin),
+  asyncHandler(bulkCreateStudents)
+);
+rosterRouter.post(
+  '/students/bulk/send-welcome-emails',
+  authenticate,
+  authorize(Role.CollegeAdmin),
+  asyncHandler(sendWelcomeEmails)
+);
 rosterRouter.patch(
   '/students/:id/batch',
   authenticate,

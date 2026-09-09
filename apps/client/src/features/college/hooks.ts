@@ -1,10 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  BulkCreateStudentsResultDto,
+  BulkStudentRowInput,
   CohortDto,
   CollegeFacultyMemberDto,
   CollegeProgramDto,
   CreateRosterMemberResultDto,
   RosterStudentDto,
+  SendWelcomeEmailsAccountInput,
+  SendWelcomeEmailsResultDto,
 } from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
 
@@ -101,5 +105,29 @@ export function useUpdateStudentBatch() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['college', 'students'] });
     },
+  });
+}
+
+export function useBulkCreateStudents() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: BulkStudentRowInput[]) =>
+      apiRequest<BulkCreateStudentsResultDto>('/api/college/students/bulk', {
+        method: 'POST',
+        body: { rows },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['college', 'students'] });
+    },
+  });
+}
+
+export function useSendWelcomeEmails() {
+  return useMutation({
+    mutationFn: (accounts: SendWelcomeEmailsAccountInput[]) =>
+      apiRequest<SendWelcomeEmailsResultDto>('/api/college/students/bulk/send-welcome-emails', {
+        method: 'POST',
+        body: { accounts },
+      }),
   });
 }
