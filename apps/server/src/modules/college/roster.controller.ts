@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { Role } from '@forge-loom/shared-types';
 import { ApiError } from '../../utils/ApiError.js';
+import { requireViewedCollegeId } from '../../middleware/scopeToCollege.js';
 import {
   bulkCreateStudentsSchema,
   createRosterMemberSchema,
@@ -52,8 +53,11 @@ export async function createTrainer(req: Request, res: Response): Promise<void> 
   await createRosterMember(req, res, 'trainer');
 }
 
+// Read-only, so this also serves Forge Admin's cross-college drill-in
+// (Phase 9) via ?collegeId= — write endpoints below stay CollegeAdmin-only
+// and keep using requireCollegeId (their own session's collegeId only).
 export async function listStudents(req: Request, res: Response): Promise<void> {
-  const collegeId = requireCollegeId(req);
+  const collegeId = requireViewedCollegeId(req);
   const rows = await rosterService.listStudents(collegeId);
   res.json({ students: rows.map(toRosterStudentDto) });
 }

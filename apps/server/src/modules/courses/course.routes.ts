@@ -23,10 +23,12 @@ export const courseRouter = Router();
 // Any authenticated role can browse/read published courses (catalog use case,
 // Phase 2) — only mutation and the "mine"/"teaching" listings are role-scoped.
 courseRouter.get('/', authenticate, asyncHandler(list));
+// Read-only for Forge Admin too, via ?collegeId= (Phase 9 cross-college
+// drill-in — lists a specific college's courses, not "mine").
 courseRouter.get(
   '/mine',
   authenticate,
-  authorize(Role.CourseAdmin, Role.CollegeAdmin),
+  authorize(Role.CourseAdmin, Role.CollegeAdmin, Role.ForgeAdmin),
   asyncHandler(listMine)
 );
 courseRouter.get('/teaching', authenticate, authorize(Role.Trainer), asyncHandler(listTeaching));

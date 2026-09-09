@@ -5,10 +5,16 @@ import type { CreateCourseInput, UpdateCourseInput } from './types';
 
 const MY_COURSES_KEY = ['course-admin', 'my-courses'];
 
-export function useMyCourses() {
+// collegeId is only ever passed by Forge Admin's cross-college drill-in
+// (Phase 9) — College Admin and Course Admin both omit it and get their own
+// "mine" listing, unchanged.
+export function useMyCourses(collegeId?: string) {
   return useQuery({
-    queryKey: MY_COURSES_KEY,
-    queryFn: () => apiRequest<{ courses: CourseDto[] }>('/api/courses/mine').then((r) => r.courses),
+    queryKey: [...MY_COURSES_KEY, collegeId ?? 'mine'],
+    queryFn: () =>
+      apiRequest<{ courses: CourseDto[] }>(
+        `/api/courses/mine${collegeId ? `?collegeId=${encodeURIComponent(collegeId)}` : ''}`
+      ).then((r) => r.courses),
   });
 }
 

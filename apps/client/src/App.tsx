@@ -46,6 +46,7 @@ import { DashboardPage as MemberDashboardPage } from './pages/member/DashboardPa
 import { DashboardPage as AdminDashboardPage } from './pages/admin/DashboardPage';
 import { CollegesPage as AdminCollegesPage } from './pages/admin/CollegesPage';
 import { ForgeAdminsPage } from './pages/admin/ForgeAdminsPage';
+import { CollegeDrillInPage } from './pages/admin/CollegeDrillInPage';
 import { CourseListPage } from './pages/course-admin/CourseListPage';
 import { CourseEditorPage } from './pages/course-admin/CourseEditorPage';
 
@@ -166,6 +167,7 @@ export function App() {
                 <>
                   <Route index element={<AdminDashboardPage />} />
                   <Route path="colleges" element={<AdminCollegesPage />} />
+                  <Route path="colleges/:id" element={<CollegeDrillInPage />} />
                   <Route path="forge-admins" element={<ForgeAdminsPage />} />
                 </>
               )}

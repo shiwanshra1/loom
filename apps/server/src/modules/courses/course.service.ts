@@ -154,6 +154,16 @@ export async function listMyCourses(userId: string): Promise<CourseWithSyllabus[
   });
 }
 
+// Forge Admin's cross-college drill-in (Phase 9) — every course at a given
+// college regardless of which College Admin created it, not "mine".
+export async function listCollegeCourses(collegeId: string): Promise<CourseWithSyllabus[]> {
+  return prisma.course.findMany({
+    where: { collegeId },
+    orderBy: { createdAt: 'desc' },
+    include: SYLLABUS_INCLUDE,
+  });
+}
+
 export async function listTeachingCourses(trainerUserId: string): Promise<CourseWithSyllabus[]> {
   return prisma.course.findMany({
     where: { trainerId: trainerUserId },

@@ -13,15 +13,18 @@ export const collegeRouter = Router();
 collegeRouter.get('/', asyncHandler(list));
 collegeRouter.post('/', authenticate, authorize(Role.ForgeAdmin), asyncHandler(create));
 collegeRouter.get('/partners', authenticate, authorize(Role.Sponsor), asyncHandler(partners));
+// Also readable by Forge Admin via ?collegeId= (Phase 9 cross-college
+// drill-in) — the "mine" in the path is a holdover from College Admin's own
+// usage, not a hard restriction to it.
 collegeRouter.get(
   '/mine/programs',
   authenticate,
-  authorize(Role.CollegeAdmin),
+  authorize(Role.CollegeAdmin, Role.ForgeAdmin),
   asyncHandler(myPrograms)
 );
 collegeRouter.get(
   '/mine/faculty',
   authenticate,
-  authorize(Role.CollegeAdmin),
+  authorize(Role.CollegeAdmin, Role.ForgeAdmin),
   asyncHandler(myFaculty)
 );

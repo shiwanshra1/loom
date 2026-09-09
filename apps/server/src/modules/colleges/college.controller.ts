@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { ApiError } from '../../utils/ApiError.js';
+import { requireViewedCollegeId } from '../../middleware/scopeToCollege.js';
 import { onboardCollegeSchema } from './college.validation.js';
 import * as collegeService from './college.service.js';
 import {
@@ -8,16 +8,6 @@ import {
   toOnboardCollegeResultDto,
   toPartnerCollegeDto,
 } from './college.mapper.js';
-
-function requireOwnCollegeId(req: Request): string {
-  if (!req.user) {
-    throw new ApiError(401, 'Not authenticated');
-  }
-  if (!req.user.collegeId) {
-    throw new ApiError(403, 'This account is not associated with a college');
-  }
-  return req.user.collegeId;
-}
 
 export async function create(req: Request, res: Response): Promise<void> {
   const input = onboardCollegeSchema.parse(req.body);
@@ -35,14 +25,16 @@ export async function adminList(_req: Request, res: Response): Promise<void> {
   res.json({ colleges: rows.map(toAdminCollegeSummaryDto) });
 }
 
+// Read-only — also serves Forge Admin's cross-college drill-in via
+// ?collegeId= (Phase 9).
 export async function myPrograms(req: Request, res: Response): Promise<void> {
-  const collegeId = requireOwnCollegeId(req);
+  const collegeId = requireViewedCollegeId(req);
   const programs = await collegeService.getCollegePrograms(collegeId);
   res.json({ programs });
 }
 
 export async function myFaculty(req: Request, res: Response): Promise<void> {
-  const collegeId = requireOwnCollegeId(req);
+  const collegeId = requireViewedCollegeId(req);
   const faculty = await collegeService.getCollegeFaculty(collegeId);
   res.json({ faculty });
 }

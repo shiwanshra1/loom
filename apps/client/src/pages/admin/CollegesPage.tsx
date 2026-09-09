@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { Building2, Plus, Users } from 'lucide-react';
 import type { CollegeDto } from '@forge-loom/shared-types';
 import { useAdminColleges, useOnboardCollege } from '../../features/admin/data';
@@ -90,9 +91,10 @@ export function CollegesPage() {
             <p className="py-4 text-sm text-slate-400">No colleges onboarded yet.</p>
           )}
           {colleges?.map((college) => (
-            <div
+            <Link
               key={college.id}
-              className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+              to={`/admin/colleges/${college.id}`}
+              className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0 hover:bg-slate-50"
             >
               <div>
                 <p className="text-sm font-medium text-slate-800">{college.name}</p>
@@ -105,7 +107,7 @@ export function CollegesPage() {
                 <span className="text-xs text-slate-500">{college.batchCount} batches</span>
                 <Badge tone={TIER_BADGE[college.partnerTier]}>{college.partnerTier}</Badge>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </Card>

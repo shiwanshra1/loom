@@ -12,30 +12,41 @@ import type {
 } from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
 
-export function useCollegePrograms() {
+// Every read hook below takes an optional collegeId so Forge Admin's
+// cross-college drill-in page (Phase 9) can reuse them exactly as College
+// Admin's own dashboard does — omit it for "my own college" (College Admin),
+// pass it for "this specific college" (Forge Admin, via ?collegeId=).
+function collegeQuery(collegeId?: string): string {
+  return collegeId ? `?collegeId=${encodeURIComponent(collegeId)}` : '';
+}
+
+export function useCollegePrograms(collegeId?: string) {
   return useQuery({
-    queryKey: ['college', 'programs'],
+    queryKey: ['college', 'programs', collegeId ?? 'mine'],
     queryFn: () =>
-      apiRequest<{ programs: CollegeProgramDto[] }>('/api/colleges/mine/programs').then(
-        (r) => r.programs
-      ),
+      apiRequest<{ programs: CollegeProgramDto[] }>(
+        `/api/colleges/mine/programs${collegeQuery(collegeId)}`
+      ).then((r) => r.programs),
   });
 }
 
-export function useCollegeFaculty() {
+export function useCollegeFaculty(collegeId?: string) {
   return useQuery({
-    queryKey: ['college', 'faculty'],
+    queryKey: ['college', 'faculty', collegeId ?? 'mine'],
     queryFn: () =>
-      apiRequest<{ faculty: CollegeFacultyMemberDto[] }>('/api/colleges/mine/faculty').then(
-        (r) => r.faculty
-      ),
+      apiRequest<{ faculty: CollegeFacultyMemberDto[] }>(
+        `/api/colleges/mine/faculty${collegeQuery(collegeId)}`
+      ).then((r) => r.faculty),
   });
 }
 
-export function useCollegeBatches() {
+export function useCollegeBatches(collegeId?: string) {
   return useQuery({
-    queryKey: ['college', 'batches'],
-    queryFn: () => apiRequest<{ cohorts: CohortDto[] }>('/api/cohorts').then((r) => r.cohorts),
+    queryKey: ['college', 'batches', collegeId ?? 'mine'],
+    queryFn: () =>
+      apiRequest<{ cohorts: CohortDto[] }>(`/api/cohorts${collegeQuery(collegeId)}`).then(
+        (r) => r.cohorts
+      ),
   });
 }
 
@@ -56,13 +67,13 @@ export function useCreateBatch() {
   });
 }
 
-export function useCollegeStudents() {
+export function useCollegeStudents(collegeId?: string) {
   return useQuery({
-    queryKey: ['college', 'students'],
+    queryKey: ['college', 'students', collegeId ?? 'mine'],
     queryFn: () =>
-      apiRequest<{ students: RosterStudentDto[] }>('/api/college/students').then(
-        (r) => r.students
-      ),
+      apiRequest<{ students: RosterStudentDto[] }>(
+        `/api/college/students${collegeQuery(collegeId)}`
+      ).then((r) => r.students),
   });
 }
 

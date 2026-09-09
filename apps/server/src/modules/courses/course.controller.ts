@@ -59,8 +59,21 @@ export async function updateStatus(req: Request, res: Response): Promise<void> {
   res.json({ course: toCourseDto(course) });
 }
 
+// Forge Admin's cross-college drill-in (Phase 9) has no "mine" to list —
+// it lists a specific college's courses instead, via ?collegeId=.
 export async function listMine(req: Request, res: Response): Promise<void> {
   const user = requireUser(req);
+
+  if (user.role === Role.ForgeAdmin) {
+    const collegeId = typeof req.query.collegeId === 'string' ? req.query.collegeId : undefined;
+    if (!collegeId) {
+      throw new ApiError(400, 'collegeId is required');
+    }
+    const courses = await courseService.listCollegeCourses(collegeId);
+    res.json({ courses: courses.map(toCourseDto) });
+    return;
+  }
+
   const courses = await courseService.listMyCourses(user.userId);
   res.json({ courses: courses.map(toCourseDto) });
 }

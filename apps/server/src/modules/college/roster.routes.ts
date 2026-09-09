@@ -21,7 +21,14 @@ rosterRouter.post(
   authorize(Role.CollegeAdmin),
   asyncHandler(createStudent)
 );
-rosterRouter.get('/students', authenticate, authorize(Role.CollegeAdmin), asyncHandler(listStudents));
+// Read-only — also serves Forge Admin's cross-college drill-in via
+// ?collegeId= (Phase 9); write endpoints below stay CollegeAdmin-only.
+rosterRouter.get(
+  '/students',
+  authenticate,
+  authorize(Role.CollegeAdmin, Role.ForgeAdmin),
+  asyncHandler(listStudents)
+);
 rosterRouter.post(
   '/students/bulk',
   authenticate,
