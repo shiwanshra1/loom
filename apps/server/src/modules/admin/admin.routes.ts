@@ -3,7 +3,15 @@ import { Role } from '@forge-loom/shared-types';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { getAnalytics, listUsers, nationalStats, updateUserStatus } from './admin.controller.js';
+import { adminList as listCollegesForAdmin } from '../colleges/college.controller.js';
+import {
+  createForgeAdmin,
+  getAnalytics,
+  listForgeAdmins,
+  listUsers,
+  nationalStats,
+  updateUserStatus,
+} from './admin.controller.js';
 
 export const adminRouter = Router();
 
@@ -20,4 +28,22 @@ adminRouter.patch(
   authenticate,
   authorize(Role.ForgeAdmin),
   asyncHandler(updateUserStatus)
+);
+adminRouter.post(
+  '/forge-admins',
+  authenticate,
+  authorize(Role.ForgeAdmin),
+  asyncHandler(createForgeAdmin)
+);
+adminRouter.get(
+  '/forge-admins',
+  authenticate,
+  authorize(Role.ForgeAdmin),
+  asyncHandler(listForgeAdmins)
+);
+adminRouter.get(
+  '/colleges',
+  authenticate,
+  authorize(Role.ForgeAdmin),
+  asyncHandler(listCollegesForAdmin)
 );

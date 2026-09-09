@@ -16,6 +16,18 @@ export interface AdminUserRowDto {
   status: UserStatus;
 }
 
+export interface ForgeAdminDto {
+  id: string;
+  email: string;
+  createdAt: string;
+}
+
+export interface CreateForgeAdminResultDto {
+  forgeAdmin: ForgeAdminDto;
+  // Shown once, immediately — see OnboardCollegeResultDto's note.
+  tempPassword: string;
+}
+
 export interface ScoreDistributionBucketDto {
   label: string;
   count: number;

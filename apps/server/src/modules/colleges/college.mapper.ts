@@ -1,6 +1,11 @@
-import type { CollegeDto, PartnerCollegeDto } from '@forge-loom/shared-types';
+import type {
+  AdminCollegeSummaryDto,
+  CollegeDto,
+  OnboardCollegeResultDto,
+  PartnerCollegeDto,
+} from '@forge-loom/shared-types';
 import type { College } from '@prisma/client';
-import type { PartnerCollegeRow } from './college.service.js';
+import type { AdminCollegeSummaryRow, OnboardCollegeResult, PartnerCollegeRow } from './college.service.js';
 
 export function toCollegeDto(college: College): CollegeDto {
   return {
@@ -9,6 +14,27 @@ export function toCollegeDto(college: College): CollegeDto {
     location: college.location ?? undefined,
     partnerTier: college.partnerTier,
     createdAt: college.createdAt.toISOString(),
+  };
+}
+
+export function toOnboardCollegeResultDto(result: OnboardCollegeResult): OnboardCollegeResultDto {
+  return {
+    college: toCollegeDto(result.college),
+    collegeAdmin: { id: result.collegeAdmin.id, email: result.collegeAdmin.email },
+    tempPassword: result.tempPassword,
+  };
+}
+
+export function toAdminCollegeSummaryDto(row: AdminCollegeSummaryRow): AdminCollegeSummaryDto {
+  return {
+    id: row.college.id,
+    name: row.college.name,
+    location: row.college.location ?? undefined,
+    partnerTier: row.college.partnerTier,
+    adminEmail: row.adminEmail,
+    studentCount: row.studentCount,
+    batchCount: row.batchCount,
+    createdAt: row.college.createdAt.toISOString(),
   };
 }
 

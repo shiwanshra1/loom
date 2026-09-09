@@ -33,3 +33,26 @@ export interface PartnerCollegeDto {
   activePhase: CohortPhase | null;
   contactEmail: string | null;
 }
+
+export interface OnboardCollegeResultDto {
+  college: CollegeDto;
+  collegeAdmin: {
+    id: string;
+    email: string;
+  };
+  // Shown once, immediately, as a manual fallback in case the queued welcome
+  // email hasn't landed yet — never persisted or re-fetchable after this
+  // response (see the open risk noted in the ticket doc).
+  tempPassword: string;
+}
+
+export interface AdminCollegeSummaryDto {
+  id: string;
+  name: string;
+  location?: string;
+  partnerTier: CollegePartnerTier;
+  adminEmail: string | null;
+  studentCount: number;
+  batchCount: number;
+  createdAt: string;
+}

@@ -73,6 +73,8 @@ export const ROLE_NAV: Record<Role, NavItem[]> = {
   [Role.Member]: [{ label: 'Feed', path: ROLE_HOME_PATH[Role.Member], icon: UserRound }],
   [Role.ForgeAdmin]: [
     { label: 'Dashboard', path: ROLE_HOME_PATH[Role.ForgeAdmin], icon: ShieldCheck },
+    { label: 'Colleges', path: '/admin/colleges', icon: Landmark },
+    { label: 'Forge Admins', path: '/admin/forge-admins', icon: UsersRound },
   ],
   [Role.CourseAdmin]: [{ label: 'My Courses', path: '/course-admin', icon: GraduationCap }],
 };

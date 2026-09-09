@@ -40,33 +40,37 @@ This initiative replaces that with a top-down, FORGE-operated onboarding model: 
 
 ---
 
-## Phase 2 — Password-change capability
+## Phase 2 — Password-change capability ✅ DONE (2026-09-09)
 
-- [ ] **T2.1** New `POST /auth/change-password` (authenticated, any role) — `{ currentPassword, newPassword }`, verifies via `comparePassword`, `hashPassword`s the new one, clears `mustChangePassword`, bumps `refreshTokenVersion` (matches the existing logout version-bump security pattern — invalidates other sessions still on the old password's tokens).
-- [ ] **T2.2** `PublicUser` (shared-types) gains `mustChangePassword: boolean`, threaded through `/me`, login, and register responses.
-- [ ] **T2.3** New `pages/auth/ForcedPasswordChangePage.tsx`; wire into `auth/RequireAuth.tsx` — add a `user?.mustChangePassword` redirect branch alongside the existing unauthenticated-redirect. Applies to every role, not just Student.
-- [ ] **T2.4** `authApi.ts` gains a change-password request function; `AuthContext.tsx` gains a `changePassword` method that updates `user.mustChangePassword` locally on success (so `RequireAuth` stops redirecting without a full re-fetch).
-- **Checkpoint**: manually flip `mustChangePassword` on a seeded user (or use the two Phase 1 test accounts, which already have it set) — confirm login redirects straight to the forced-change screen, the old temp password stops working after a successful change, and every other route stays inaccessible until the change completes.
-
----
-
-## Phase 3 — ⚠ `Course.createdBy` repoint
-
-- [ ] **T3.1** Migration step 1 (additive): add nullable `Course.createdByUserId`, no FK yet. Deploy, verify zero behavior change.
-- [ ] **T3.2** One-off backfill script (same shape/discipline as the deleted `migrateMongoToPostgres.ts` — read-only against source, verified against a scratch/dev copy first, not run blind against live data): for every `Course`, resolve `CourseAdminProfile.findUnique({ id: course.createdBy }).userId` → set `createdByUserId`. Assert every row backfills; throw (don't silently skip) on any that don't resolve.
-- [ ] **T3.3** Migration step 3: make `createdByUserId` required, add the FK to `User(id)`, drop the old `createdBy` column/FK to `CourseAdminProfile`, rename into place.
-- [ ] **T3.4** Application code: `course.service.ts`, `courseAccess.ts`, `course.mapper.ts` — their `CourseAdminProfile` lookups collapse into direct `User.id` comparisons (a simplification, not just a rename; `courseAccess.ts`'s ownership check no longer needs an extra profile-table query).
-- **Checkpoint**: row counts match before/after the backfill; existing Course Admin course-management flows (create/edit/publish, already covered by Phase 2 of the Prisma migration's live testing) still work unchanged.
+- [x] **T2.1** New `POST /auth/change-password` (authenticated, any role) — `{ currentPassword, newPassword }`, verifies via `comparePassword`, `hashPassword`s the new one, clears `mustChangePassword`, bumps `refreshTokenVersion` (matches the existing logout version-bump security pattern — invalidates other sessions still on the old password's tokens).
+- [x] **T2.2** `PublicUser` (shared-types) gains `mustChangePassword: boolean`, threaded through `/me`, login, and register responses.
+- [x] **T2.3** New `pages/auth/ForcedPasswordChangePage.tsx`; wire into `auth/RequireAuth.tsx` — add a `user?.mustChangePassword` redirect branch alongside the existing unauthenticated-redirect. Applies to every role, not just Student.
+- [x] **T2.4** `authApi.ts` gains a change-password request function; `AuthContext.tsx` gains a `changePassword` method that updates `user.mustChangePassword` locally on success (so `RequireAuth` stops redirecting without a full re-fetch).
+- **Checkpoint — met.** `refreshTokenVersion` is bumped for the first time anywhere in the codebase (previously stored/compared but never incremented) — invalidates every other session's refresh token and reissues fresh tokens for the caller's own session, since its refresh token is orphaned by the same bump. Live-verified against `student3@forgeloom.dev`/`69951064` (a Phase 1 test account with `mustChangePassword: true`): wrong current password → 401; correct change → `mustChangePassword: false` in the response, old password rejected afterward, new password works. `mentor3@forgeloom.dev` was left untouched (`60282532`, still `mustChangePassword: true`) as a control. `npm run typecheck`/`build`/lint clean, `npx vitest run` green twice.
 
 ---
 
-## Phase 4 — Forge Admin creates Forge Admin + College onboarding
+## Phase 3 — ⚠ `Course.createdBy` repoint ✅ DONE (2026-09-09)
 
-- [ ] **T4.1** New `POST /admin/forge-admins`, `GET /admin/forge-admins` (ForgeAdmin-only) — reuses the shared `createAdminManagedAccount` provisioning service (built this phase, in `modules/admin/accountProvisioning.service.ts`): generates + hashes an 8-digit temp password, creates the `User` with `mustChangePassword: true`, calls the existing `createProfileForRole` (no-op for ForgeAdmin, unchanged), enqueues a welcome email.
-- [ ] **T4.2** `POST /colleges` repurposed (confirmed zero-blast-radius: grepped, nothing currently calls this endpoint) into a transactional onboarding call — `College` + `User(role=college_admin)` + `CollegeProfile` created together in one `$transaction`.
-- [ ] **T4.3** New `GET /admin/colleges` — count + list onboarded colleges with admin contact, student/batch counts.
-- [ ] **T4.4** Frontend: `pages/admin/CollegesPage.tsx` (stat + list + "Onboard New College" modal), `pages/admin/ForgeAdminsPage.tsx`, both wired into `layout/roleNav.ts`'s `[Role.ForgeAdmin]` entry.
-- **Checkpoint**: ship while CollegeAdmin self-registration is still active (Phase 5 hasn't removed it yet) — onboard a real test college end-to-end via the UI, confirm the new College Admin account can log in (forced through the Phase 2 password-change screen) and lands on an empty-but-functional College Admin dashboard.
+- [x] **T3.1** Migration step 1 (additive): add nullable `Course.createdByUserId`, no FK yet. Deploy, verify zero behavior change.
+- [x] **T3.2** One-off backfill script (same shape/discipline as the deleted `migrateMongoToPostgres.ts` — read-only against source, verified against a scratch/dev copy first, not run blind against live data): for every `Course`, resolve `CourseAdminProfile.findUnique({ id: course.createdBy }).userId` → set `createdByUserId`. Assert every row backfills; throw (don't silently skip) on any that don't resolve.
+- [x] **T3.3** Migration step 3: make `createdByUserId` required, add the FK to `User(id)`, drop the old `createdBy` column/FK to `CourseAdminProfile`, rename into place.
+- [x] **T3.4** Application code: `course.service.ts`, `courseAccess.ts`, `course.mapper.ts` — their `CourseAdminProfile` lookups collapse into direct `User.id` comparisons (a simplification, not just a rename; `courseAccess.ts`'s ownership check no longer needs an extra profile-table query — `isCourseAdminOwner` went from `async` with a DB lookup to a plain synchronous field comparison).
+- **Corrections found during execution, disclosed**:
+  - The step-3 migration correctly refused to run against `forgeloom_test` on the first attempt (`column "createdBy" contains null values`) — 5 stale `Course` rows were left over from an earlier `vitest run` (globalSetup truncates tables at the *start* of a run, not the end, so the previous run's fixtures were still sitting there unbackfilled). Recovered via `prisma migrate resolve --rolled-back`, ran the backfill script against `forgeloom_test` too, retried — succeeded. Not forced through; the failure was a legitimate catch of stale data.
+  - `enrollment.test.ts` and `attendance.test.ts` directly constructed `Course` fixture rows using `createdBy: adminProfile.id` (the old `CourseAdminProfile.id`) — no longer a valid FK target after the repoint. Fixed all 3 occurrences to `createdBy: adminUser.id`.
+- **Checkpoint — met.** Row counts matched before/after the backfill on both databases. `npm run typecheck`/`build`/lint clean, `npx vitest run` green twice (20/20) after the fixture fix. Live-verified: `course_admin1@forgeloom.dev`'s `GET /api/courses/mine` still returns all 3 existing courses correctly; `student1@forgeloom.dev`'s `GET /api/catalog` unaffected.
+
+---
+
+## Phase 4 — Forge Admin creates Forge Admin + College onboarding ✅ DONE (2026-09-09)
+
+- [x] **T4.1** New `POST /admin/forge-admins`, `GET /admin/forge-admins` (ForgeAdmin-only) — reuses the shared `createAdminManagedAccount` provisioning service (built this phase, in `modules/admin/accountProvisioning.service.ts`): generates + hashes an 8-digit temp password, creates the `User` with `mustChangePassword: true`, calls the existing `createProfileForRole` (no-op for ForgeAdmin, unchanged), enqueues a welcome email.
+- [x] **T4.2** `POST /colleges` repurposed (confirmed zero-blast-radius: grepped, nothing currently calls this endpoint) into a transactional onboarding call — `College` + `User(role=college_admin)` + `CollegeProfile` created together in one `$transaction`.
+- [x] **T4.3** New `GET /admin/colleges` — count + list onboarded colleges with admin contact, student/batch counts (`college.service.ts`'s `getAdminCollegeSummaries`, exposed through `adminRouter` since it's Forge Admin's cross-college oversight view, not the public college directory).
+- [x] **T4.4** Frontend: `pages/admin/CollegesPage.tsx` (stat + list + "Onboard New College" modal), `pages/admin/ForgeAdminsPage.tsx`, both wired into `layout/roleNav.ts`'s `[Role.ForgeAdmin]` entry and `App.tsx`'s `Role.ForgeAdmin` route section.
+- **Judgment call, disclosed**: both onboarding endpoints (`POST /colleges`, `POST /admin/forge-admins`) return the plaintext `tempPassword` once in the response body, shown once in the success modal alongside the admin's email — not persisted or re-fetchable after. This resolves one of the plan's open risks ("show the temp password once as a manual fallback if SMTP is slow/down") in favor of showing it, since the welcome email is only queued (best-effort) and the admin creating the account has no other way to hand over working credentials immediately. Never logged server-side.
+- **Checkpoint — met.** Verified live end-to-end via HTTP against the real dev stack (`admin1@forgeloom.dev`): created a second Forge Admin (`admin2@forgeloom.dev`), confirmed it appears in the list; onboarded a real test college (`Phase 4 Test College`) with a fresh College Admin (`collegeadmin2@forgeloom.dev`), confirmed the College/User/CollegeProfile all landed correctly in `GET /admin/colleges` (student/batch counts, admin contact); confirmed the new College Admin can log in with the returned temp password and `mustChangePassword: true`/`collegeId` are both set correctly; confirmed a duplicate email is rejected with 409 on both endpoints; confirmed a non-Forge-Admin token gets 403 on `GET /admin/colleges`. `npm run typecheck`/`build`/lint clean across all 3 workspaces, `npx vitest run` green twice (20/20, unaffected by this phase).
 
 ---
 

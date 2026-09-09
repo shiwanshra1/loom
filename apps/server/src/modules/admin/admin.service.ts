@@ -1,7 +1,10 @@
-import type { User } from '@prisma/client';
+import { Role } from '@forge-loom/shared-types';
+import type { Role as PrismaRole, User } from '@prisma/client';
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
-import type { UpdateUserStatusInput } from './admin.validation.js';
+import { toPrismaEnum } from '../../utils/prismaEnum.js';
+import { createAdminManagedAccount } from './accountProvisioning.service.js';
+import type { CreateForgeAdminInput, UpdateUserStatusInput } from './admin.validation.js';
 
 export interface NationalStats {
   totalColleges: number;
@@ -51,4 +54,21 @@ export async function updateUserStatus(
     throw new ApiError(404, 'User not found');
   }
   return prisma.user.update({ where: { id: userId }, data: { status: input.status } });
+}
+
+export async function createForgeAdmin(
+  input: CreateForgeAdminInput
+): Promise<{ user: User; tempPassword: string }> {
+  return createAdminManagedAccount({
+    role: Role.ForgeAdmin,
+    email: input.email,
+    displayName: input.displayName,
+  });
+}
+
+export async function listForgeAdmins(): Promise<User[]> {
+  return prisma.user.findMany({
+    where: { role: toPrismaEnum<PrismaRole>(Role.ForgeAdmin) },
+    orderBy: { createdAt: 'desc' },
+  });
 }

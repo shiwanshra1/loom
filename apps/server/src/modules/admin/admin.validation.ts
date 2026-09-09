@@ -5,3 +5,10 @@ export const updateUserStatusSchema = z.object({
 });
 
 export type UpdateUserStatusInput = z.infer<typeof updateUserStatusSchema>;
+
+export const createForgeAdminSchema = z.object({
+  email: z.string().email(),
+  displayName: z.string().min(1),
+});
+
+export type CreateForgeAdminInput = z.infer<typeof createForgeAdminSchema>;

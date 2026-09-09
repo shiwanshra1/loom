@@ -39,6 +39,8 @@ import { DashboardPage as CommunityDashboardPage } from './pages/community/Dashb
 import { DashboardPage as MediaDashboardPage } from './pages/media/DashboardPage';
 import { DashboardPage as MemberDashboardPage } from './pages/member/DashboardPage';
 import { DashboardPage as AdminDashboardPage } from './pages/admin/DashboardPage';
+import { CollegesPage as AdminCollegesPage } from './pages/admin/CollegesPage';
+import { ForgeAdminsPage } from './pages/admin/ForgeAdminsPage';
 import { CourseListPage } from './pages/course-admin/CourseListPage';
 import { CourseEditorPage } from './pages/course-admin/CourseEditorPage';
 
@@ -143,7 +145,14 @@ export function App() {
               )}
               {roleSection(Role.MediaPartner, <Route index element={<MediaDashboardPage />} />)}
               {roleSection(Role.Member, <Route index element={<MemberDashboardPage />} />)}
-              {roleSection(Role.ForgeAdmin, <Route index element={<AdminDashboardPage />} />)}
+              {roleSection(
+                Role.ForgeAdmin,
+                <>
+                  <Route index element={<AdminDashboardPage />} />
+                  <Route path="colleges" element={<AdminCollegesPage />} />
+                  <Route path="forge-admins" element={<ForgeAdminsPage />} />
+                </>
+              )}
 
               {roleSection(
                 Role.CourseAdmin,

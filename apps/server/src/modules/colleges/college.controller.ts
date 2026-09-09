@@ -1,8 +1,13 @@
 import type { Request, Response } from 'express';
 import { ApiError } from '../../utils/ApiError.js';
-import { createCollegeSchema } from './college.validation.js';
+import { onboardCollegeSchema } from './college.validation.js';
 import * as collegeService from './college.service.js';
-import { toCollegeDto, toPartnerCollegeDto } from './college.mapper.js';
+import {
+  toAdminCollegeSummaryDto,
+  toCollegeDto,
+  toOnboardCollegeResultDto,
+  toPartnerCollegeDto,
+} from './college.mapper.js';
 
 function requireOwnCollegeId(req: Request): string {
   if (!req.user) {
@@ -15,14 +20,19 @@ function requireOwnCollegeId(req: Request): string {
 }
 
 export async function create(req: Request, res: Response): Promise<void> {
-  const input = createCollegeSchema.parse(req.body);
-  const college = await collegeService.createCollege(input);
-  res.status(201).json({ college: toCollegeDto(college) });
+  const input = onboardCollegeSchema.parse(req.body);
+  const result = await collegeService.onboardCollege(input);
+  res.status(201).json(toOnboardCollegeResultDto(result));
 }
 
 export async function list(_req: Request, res: Response): Promise<void> {
   const colleges = await collegeService.listColleges();
   res.json({ colleges: colleges.map(toCollegeDto) });
+}
+
+export async function adminList(_req: Request, res: Response): Promise<void> {
+  const rows = await collegeService.getAdminCollegeSummaries();
+  res.json({ colleges: rows.map(toAdminCollegeSummaryDto) });
 }
 
 export async function myPrograms(req: Request, res: Response): Promise<void> {

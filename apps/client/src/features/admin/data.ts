@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  AdminCollegeSummaryDto,
   AdminUserRowDto,
   AnalyticsDto,
   CohortDto,
   CohortPhase as ServerCohortPhase,
   CollegeDto,
+  CreateForgeAdminResultDto,
+  ForgeAdminDto,
   NationalStatsDto,
+  OnboardCollegeResultDto,
 } from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
 
@@ -128,6 +132,64 @@ export function useAdvanceCohortPhase() {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['admin', 'cohorts'] });
+    },
+  });
+}
+
+export function useAdminColleges() {
+  return useQuery({
+    queryKey: ['admin', 'colleges'],
+    queryFn: () =>
+      apiRequest<{ colleges: AdminCollegeSummaryDto[] }>('/api/admin/colleges').then(
+        (r) => r.colleges
+      ),
+  });
+}
+
+export interface OnboardCollegeInput {
+  name: string;
+  location?: string;
+  partnerTier?: CollegeDto['partnerTier'];
+  adminEmail: string;
+  adminDisplayName: string;
+}
+
+export function useOnboardCollege() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: OnboardCollegeInput) =>
+      apiRequest<OnboardCollegeResultDto>('/api/colleges', { method: 'POST', body: input }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'colleges'] });
+    },
+  });
+}
+
+export function useForgeAdmins() {
+  return useQuery({
+    queryKey: ['admin', 'forge-admins'],
+    queryFn: () =>
+      apiRequest<{ forgeAdmins: ForgeAdminDto[] }>('/api/admin/forge-admins').then(
+        (r) => r.forgeAdmins
+      ),
+  });
+}
+
+export interface CreateForgeAdminInput {
+  email: string;
+  displayName: string;
+}
+
+export function useCreateForgeAdmin() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateForgeAdminInput) =>
+      apiRequest<CreateForgeAdminResultDto>('/api/admin/forge-admins', {
+        method: 'POST',
+        body: input,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'forge-admins'] });
     },
   });
 }
