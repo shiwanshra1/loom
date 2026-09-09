@@ -11,7 +11,6 @@ export interface RegisterPayload {
   password: string;
   displayName: string;
   role: Role;
-  collegeId?: string;
 }
 
 export interface LoginPayload {

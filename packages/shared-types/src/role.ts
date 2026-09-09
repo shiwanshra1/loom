@@ -28,7 +28,15 @@ export const COLLEGE_SCOPED_ROLES: Role[] = [
  * the public register endpoint. Course creation is a trusted operation
  * (milestone-1.md Phase 1), so course_admin is provisioned the same way as
  * forge_admin: seeded/created manually, not self-registered.
+ *
+ * The four college-scoped roles are excluded too (Forge Admin hierarchy
+ * Phase 5) — every one of them is now onboarded top-down instead of
+ * self-signing-up: a Forge Admin onboards a college, which creates its
+ * College Admin account in the same step, and that College Admin then
+ * invites/bulk-creates its own students, mentors, and trainers. There is no
+ * more "pick a role and a college" self-signup path for any of the four.
  */
 export const SELF_REGISTERABLE_ROLES: Role[] = ROLES.filter(
-  (role) => role !== Role.ForgeAdmin && role !== Role.CourseAdmin
+  (role) =>
+    role !== Role.ForgeAdmin && role !== Role.CourseAdmin && !COLLEGE_SCOPED_ROLES.includes(role)
 );

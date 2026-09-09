@@ -9,27 +9,40 @@ import { enqueueWelcomeEmail } from '../../jobs/welcomeEmailQueue.js';
 import type { OnboardCollegeInput } from './college.validation.js';
 import type { CollegeFacultyMemberDto, CollegeProgramDto } from '@forge-loom/shared-types';
 
-export interface OnboardCollegeResult {
-  college: College;
-  collegeAdmin: User;
-  tempPassword: string;
+export interface CreateCollegeWithAdminInput {
+  name: string;
+  location?: string;
+  partnerTier?: College['partnerTier'];
+  adminEmail: string;
+  passwordHash: string;
+  // False for scripts/seed.ts's dev fixtures (known password, no forced
+  // change flow needed); true for every real onboarding call.
+  mustChangePassword: boolean;
 }
 
-// Onboarding a college and its College Admin happens together, atomically —
-// a College with no admin (or an admin User with no College) would both be
-// broken states, so this is one $transaction rather than two separate
-// creates the caller has to remember to pair up correctly.
-export async function onboardCollege(input: OnboardCollegeInput): Promise<OnboardCollegeResult> {
+export interface CreateCollegeWithAdminResult {
+  college: College;
+  collegeAdmin: User;
+}
+
+// The one place a College and its College Admin get created together —
+// used by both the real onboarding endpoint (onboardCollege, below) and
+// scripts/seed.ts, replacing what used to be two parallel implementations
+// (the register-endpoint's collegeProvisioning.ts, now deleted, and a
+// separate non-transactional CollegeProfile creation in profileFactory.ts).
+// A College with no admin (or an admin User with no College) would both be
+// broken states, so this is one $transaction rather than creates the caller
+// has to remember to pair up correctly.
+export async function createCollegeWithAdmin(
+  input: CreateCollegeWithAdminInput
+): Promise<CreateCollegeWithAdminResult> {
   const existingAdmin = await prisma.user.findUnique({ where: { email: input.adminEmail } });
   if (existingAdmin) {
     throw new ApiError(409, 'An account with this email already exists');
   }
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await hashPassword(tempPassword);
-
-  const { college, collegeAdmin } = await prisma.$transaction(async (tx) => {
-    const newCollege = await tx.college.create({
+  return prisma.$transaction(async (tx) => {
+    const college = await tx.college.create({
       data: {
         name: input.name,
         location: input.location,
@@ -37,21 +50,41 @@ export async function onboardCollege(input: OnboardCollegeInput): Promise<Onboar
       },
     });
 
-    const newCollegeAdmin = await tx.user.create({
+    const collegeAdmin = await tx.user.create({
       data: {
         email: input.adminEmail,
-        passwordHash,
+        passwordHash: input.passwordHash,
         role: toPrismaEnum<PrismaRole>(Role.CollegeAdmin),
-        collegeId: newCollege.id,
-        mustChangePassword: true,
+        collegeId: college.id,
+        mustChangePassword: input.mustChangePassword,
       },
     });
 
     await tx.collegeProfile.create({
-      data: { userId: newCollegeAdmin.id, collegeId: newCollege.id, collegeName: newCollege.name },
+      data: { userId: collegeAdmin.id, collegeId: college.id, collegeName: college.name },
     });
 
-    return { college: newCollege, collegeAdmin: newCollegeAdmin };
+    return { college, collegeAdmin };
+  });
+}
+
+export interface OnboardCollegeResult {
+  college: College;
+  collegeAdmin: User;
+  tempPassword: string;
+}
+
+export async function onboardCollege(input: OnboardCollegeInput): Promise<OnboardCollegeResult> {
+  const tempPassword = generateTempPassword();
+  const passwordHash = await hashPassword(tempPassword);
+
+  const { college, collegeAdmin } = await createCollegeWithAdmin({
+    name: input.name,
+    location: input.location,
+    partnerTier: input.partnerTier,
+    adminEmail: input.adminEmail,
+    passwordHash,
+    mustChangePassword: true,
   });
 
   await enqueueWelcomeEmail({

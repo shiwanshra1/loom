@@ -1,21 +1,18 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { COLLEGE_SCOPED_ROLES, Role, SELF_REGISTERABLE_ROLES } from '@forge-loom/shared-types';
-import type { CollegeDto } from '@forge-loom/shared-types';
+import { Role, SELF_REGISTERABLE_ROLES } from '@forge-loom/shared-types';
 import { useAuth } from '../../auth/AuthContext';
 import { ROLE_HOME_PATH, ROLE_LABELS } from '../../auth/roleHome';
-import { apiRequest, ApiClientError } from '../../lib/apiClient';
+import { ApiClientError } from '../../lib/apiClient';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 
-// Every college-scoped role picks an existing college except CollegeAdmin,
-// who founds a new one (their display name becomes its name) — see
-// collegeProvisioning.ts on the server for the authoritative rule.
-function needsCollegePicker(role: Role): boolean {
-  return COLLEGE_SCOPED_ROLES.includes(role) && role !== Role.CollegeAdmin;
-}
-
+// Student/Mentor/Trainer/CollegeAdmin are deliberately absent from
+// SELF_REGISTERABLE_ROLES (Forge Admin hierarchy Phase 5) — those four are
+// now onboarded top-down only (a Forge Admin onboards a college, and that
+// college's admin invites/bulk-creates its own students, mentors, and
+// trainers), so this form never needs a college picker anymore.
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -23,18 +20,9 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<Role>(Role.Student);
-  const [collegeId, setCollegeId] = useState('');
-  const [colleges, setColleges] = useState<CollegeDto[]>([]);
+  const [role, setRole] = useState<Role>(SELF_REGISTERABLE_ROLES[0] ?? Role.Member);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (!needsCollegePicker(role) || colleges.length > 0) return;
-    apiRequest<{ colleges: CollegeDto[] }>('/api/colleges')
-      .then((data) => setColleges(data.colleges))
-      .catch(() => undefined);
-  }, [role, colleges.length]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -42,13 +30,7 @@ export function RegisterPage() {
     setSubmitting(true);
 
     try {
-      const registeredUser = await register({
-        email,
-        password,
-        displayName,
-        role,
-        collegeId: needsCollegePicker(role) ? collegeId : undefined,
-      });
+      const registeredUser = await register({ email, password, displayName, role });
       navigate(ROLE_HOME_PATH[registeredUser.role], { replace: true });
     } catch (err) {
       setError(
@@ -89,46 +71,16 @@ export function RegisterPage() {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="displayName">
-              {role === Role.Student ? 'Full name' : 'Display name'}
+              Display name
             </label>
             <Input
               id="displayName"
               required
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
-              placeholder={role === Role.Student ? 'Arjun Sharma' : 'Acme Corp'}
+              placeholder="Acme Corp"
             />
           </div>
-
-          {role === Role.CollegeAdmin && (
-            <p className="-mt-2 text-xs text-slate-400">
-              This creates a new college in Forge Loom, named after the display name above.
-            </p>
-          )}
-
-          {needsCollegePicker(role) && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="college">
-                College
-              </label>
-              <select
-                id="college"
-                required
-                value={collegeId}
-                onChange={(event) => setCollegeId(event.target.value)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              >
-                <option value="" disabled>
-                  Select your college…
-                </option>
-                {colleges.map((college) => (
-                  <option key={college.id} value={college.id}>
-                    {college.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700" htmlFor="email">
@@ -163,11 +115,7 @@ export function RegisterPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <Button
-            type="submit"
-            disabled={submitting || (needsCollegePicker(role) && !collegeId)}
-            className="w-full"
-          >
+          <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? 'Creating account…' : 'Create account'}
           </Button>
         </form>

@@ -2,7 +2,7 @@ import { Role } from '@forge-loom/shared-types';
 import { prisma, connectPrisma, disconnectPrisma } from '../config/prisma.js';
 import { hashPassword } from '../utils/password.js';
 import { createProfileForRole } from '../modules/auth/profileFactory.js';
-import { resolveCollegeIdForRegistration } from '../modules/auth/collegeProvisioning.js';
+import { createCollegeWithAdmin } from '../modules/colleges/college.service.js';
 
 interface SeedAccount {
   email: string;
@@ -90,18 +90,19 @@ async function seedCollegeAdmin(account: SeedAccount): Promise<string> {
     return existing.collegeId;
   }
 
-  const collegeId = await resolveCollegeIdForRegistration(account.role, account.displayName);
-  if (!collegeId) {
-    throw new Error('College provisioning did not return a collegeId for a college_admin seed');
-  }
-
+  // Same createCollegeWithAdmin used by the real onboarding endpoint —
+  // mustChangePassword: false here (unlike real onboarding) so a fresh
+  // `npm run seed` doesn't force every seed College Admin through the
+  // password-change flow before the dashboard is even reachable.
   const passwordHash = await hashPassword(SEED_PASSWORD);
-  const user = await prisma.user.create({
-    data: { email: account.email, passwordHash, role: account.role, collegeId },
+  const { college } = await createCollegeWithAdmin({
+    name: account.displayName,
+    adminEmail: account.email,
+    passwordHash,
+    mustChangePassword: false,
   });
-  await createProfileForRole(account.role, user.id, account.displayName, collegeId);
   console.log(`create ${account.email} (${account.role}, founded a new College)`);
-  return collegeId;
+  return college.id;
 }
 
 async function seedCollegeScopedAccount(account: SeedAccount, collegeId: string): Promise<void> {

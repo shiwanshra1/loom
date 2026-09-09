@@ -2,11 +2,13 @@ import { Role } from '@forge-loom/shared-types';
 import { prisma } from '../../config/prisma.js';
 
 /**
- * Creates the role-specific profile row on registration. `displayName` is
+ * Creates the role-specific profile row for a new account. `displayName` is
  * mapped to whichever field that role's table actually requires (student name,
  * company name, org name, ...) — roles with no required display field just get
- * an empty profile keyed by userId. `collegeId` is only meaningful (and only
- * ever passed) for the college-scoped roles — see collegeProvisioning.ts.
+ * an empty profile keyed by userId. `collegeId` is only meaningful for the
+ * college-scoped roles, all of which are provisioned top-down (see
+ * accountProvisioning.service.ts and college.service.ts's
+ * createCollegeWithAdmin) rather than through self-registration.
  */
 export async function createProfileForRole(
   role: Role,
@@ -34,8 +36,11 @@ export async function createProfileForRole(
       await prisma.sponsorProfile.create({ data: { userId, orgName: displayName } });
       return;
     case Role.CollegeAdmin:
-      // collegeId is always set for this role by the time we get here — it's
-      // the College this admin just founded (see collegeProvisioning.ts).
+      // Not exercised by any current call site — College Admin accounts are
+      // always created via college.service.ts's createCollegeWithAdmin,
+      // which creates the CollegeProfile itself inside the same transaction
+      // as the College and the User. Kept here for switch exhaustiveness
+      // over Role.
       await prisma.collegeProfile.create({
         data: { userId, collegeId: collegeId!, collegeName: displayName },
       });

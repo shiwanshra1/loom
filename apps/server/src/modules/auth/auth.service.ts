@@ -9,7 +9,6 @@ import {
   revokeRefreshToken,
 } from './refreshToken.store.js';
 import { createProfileForRole } from './profileFactory.js';
-import { resolveCollegeIdForRegistration } from './collegeProvisioning.js';
 import { ApiError } from '../../utils/ApiError.js';
 import type { RegisterInput, LoginInput, ChangePasswordInput } from './auth.validation.js';
 
@@ -35,6 +34,10 @@ async function issueTokens(user: User): Promise<IssuedTokens> {
   return { accessToken, refreshToken };
 }
 
+// None of the roles left in registerSchema (SELF_REGISTERABLE_ROLES) are
+// college-scoped as of Forge Admin hierarchy Phase 5, so there's no
+// collegeId to resolve here anymore — every college-scoped account is
+// created top-down via accountProvisioning.service.ts instead.
 export async function registerUser(
   input: RegisterInput
 ): Promise<{ user: User; tokens: IssuedTokens }> {
@@ -43,23 +46,16 @@ export async function registerUser(
     throw new ApiError(409, 'An account with this email already exists');
   }
 
-  const collegeId = await resolveCollegeIdForRegistration(
-    input.role as Role,
-    input.displayName,
-    input.collegeId
-  );
-
   const passwordHash = await hashPassword(input.password);
   const user = await prisma.user.create({
     data: {
       email: input.email,
       passwordHash,
       role: input.role as unknown as PrismaRole,
-      collegeId,
     },
   });
 
-  await createProfileForRole(input.role as Role, user.id, input.displayName, collegeId);
+  await createProfileForRole(input.role as Role, user.id, input.displayName);
 
   const tokens = await issueTokens(user);
   return { user, tokens };
