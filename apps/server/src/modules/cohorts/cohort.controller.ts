@@ -14,8 +14,18 @@ function requireParam(req: Request, name: string): string {
 }
 
 export async function create(req: Request, res: Response): Promise<void> {
+  if (!req.user) {
+    throw new ApiError(401, 'Not authenticated');
+  }
   const input = createCohortSchema.parse(req.body);
-  const cohort = await cohortService.createCohort(input);
+
+  const collegeId =
+    req.user.role === Role.CollegeAdmin ? req.user.collegeId : input.collegeId;
+  if (!collegeId) {
+    throw new ApiError(400, 'collegeId is required');
+  }
+
+  const cohort = await cohortService.createCohort(collegeId, input);
   res.status(201).json({ cohort: toCohortDto(cohort) });
 }
 

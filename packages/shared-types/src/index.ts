@@ -22,3 +22,4 @@ export * from './talentPool.js';
 export * from './hrProfile.js';
 export * from './adminAnalytics.js';
 export * from './placement.js';
+export * from './roster.js';

@@ -13,10 +13,13 @@ const ALLOWED_PHASE_TRANSITIONS: Record<CohortPhase, CohortPhase[]> = {
   citadel: [],
 };
 
-export async function createCohort(input: CreateCohortInput): Promise<Cohort> {
+// collegeId is resolved by the caller (Forge Admin supplies it explicitly;
+// College Admin gets it forced from their own session) rather than trusted
+// from CreateCohortInput directly.
+export async function createCohort(collegeId: string, input: CreateCohortInput): Promise<Cohort> {
   return prisma.cohort.create({
     data: {
-      collegeId: input.collegeId,
+      collegeId,
       name: input.name,
       startDate: new Date(input.startDate),
       endDate: new Date(input.endDate),

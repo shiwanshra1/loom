@@ -8,8 +8,15 @@ import { advancePhase, create, list } from './cohort.controller.js';
 
 export const cohortRouter = Router();
 
-// Forge-admin-managed per the roadmap; College Admin can only read their own.
-cohortRouter.post('/', authenticate, authorize(Role.ForgeAdmin), asyncHandler(create));
+// College Admin can create batches for their own college (Forge Admin
+// hierarchy Phase 6) — the controller forces collegeId from their session,
+// ignoring anything they send in the body.
+cohortRouter.post(
+  '/',
+  authenticate,
+  authorize(Role.ForgeAdmin, Role.CollegeAdmin),
+  asyncHandler(create)
+);
 cohortRouter.get(
   '/',
   authenticate,

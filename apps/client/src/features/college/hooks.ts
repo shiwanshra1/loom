@@ -1,5 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
-import type { CollegeFacultyMemberDto, CollegeProgramDto } from '@forge-loom/shared-types';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type {
+  CohortDto,
+  CollegeFacultyMemberDto,
+  CollegeProgramDto,
+  CreateRosterMemberResultDto,
+  RosterStudentDto,
+} from '@forge-loom/shared-types';
 import { apiRequest } from '../../lib/apiClient';
 
 export function useCollegePrograms() {
@@ -19,5 +25,81 @@ export function useCollegeFaculty() {
       apiRequest<{ faculty: CollegeFacultyMemberDto[] }>('/api/colleges/mine/faculty').then(
         (r) => r.faculty
       ),
+  });
+}
+
+export function useCollegeBatches() {
+  return useQuery({
+    queryKey: ['college', 'batches'],
+    queryFn: () => apiRequest<{ cohorts: CohortDto[] }>('/api/cohorts').then((r) => r.cohorts),
+  });
+}
+
+export interface CreateBatchInput {
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
+export function useCreateBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateBatchInput) =>
+      apiRequest<{ cohort: CohortDto }>('/api/cohorts', { method: 'POST', body: input }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['college', 'batches'] });
+    },
+  });
+}
+
+export function useCollegeStudents() {
+  return useQuery({
+    queryKey: ['college', 'students'],
+    queryFn: () =>
+      apiRequest<{ students: RosterStudentDto[] }>('/api/college/students').then(
+        (r) => r.students
+      ),
+  });
+}
+
+export interface CreateRosterMemberInput {
+  email: string;
+  displayName: string;
+}
+
+function useCreateRosterMember(path: string, invalidateKey: string[]) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateRosterMemberInput) =>
+      apiRequest<CreateRosterMemberResultDto>(path, { method: 'POST', body: input }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: invalidateKey });
+    },
+  });
+}
+
+export function useCreateStudent() {
+  return useCreateRosterMember('/api/college/students', ['college', 'students']);
+}
+
+export function useCreateMentor() {
+  return useCreateRosterMember('/api/college/mentors', ['college', 'faculty']);
+}
+
+export function useCreateTrainer() {
+  return useCreateRosterMember('/api/college/trainers', ['college', 'faculty']);
+}
+
+export function useUpdateStudentBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { studentUserId: string; cohortId: string | null }) =>
+      apiRequest<{ student: RosterStudentDto }>(
+        `/api/college/students/${input.studentUserId}/batch`,
+        { method: 'PATCH', body: { cohortId: input.cohortId } }
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['college', 'students'] });
+    },
   });
 }

@@ -35,6 +35,9 @@ import { DashboardPage as HrDashboardPage } from './pages/hr/DashboardPage';
 import { TalentPoolPage } from './pages/hr/TalentPoolPage';
 import { DashboardPage as SponsorDashboardPage } from './pages/sponsor/DashboardPage';
 import { DashboardPage as CollegeDashboardPage } from './pages/college/DashboardPage';
+import { BatchesPage as CollegeBatchesPage } from './pages/college/BatchesPage';
+import { StudentsPage as CollegeStudentsPage } from './pages/college/StudentsPage';
+import { FacultyPage as CollegeFacultyPage } from './pages/college/FacultyPage';
 import { DashboardPage as CommunityDashboardPage } from './pages/community/DashboardPage';
 import { DashboardPage as MediaDashboardPage } from './pages/media/DashboardPage';
 import { DashboardPage as MemberDashboardPage } from './pages/member/DashboardPage';
@@ -138,7 +141,15 @@ export function App() {
               )}
 
               {roleSection(Role.Sponsor, <Route index element={<SponsorDashboardPage />} />)}
-              {roleSection(Role.CollegeAdmin, <Route index element={<CollegeDashboardPage />} />)}
+              {roleSection(
+                Role.CollegeAdmin,
+                <>
+                  <Route index element={<CollegeDashboardPage />} />
+                  <Route path="batches" element={<CollegeBatchesPage />} />
+                  <Route path="students" element={<CollegeStudentsPage />} />
+                  <Route path="faculty" element={<CollegeFacultyPage />} />
+                </>
+              )}
               {roleSection(
                 Role.CommunityLeader,
                 <Route index element={<CommunityDashboardPage />} />

@@ -12,6 +12,7 @@ import { sessionRouter, studentAttendanceRouter } from './modules/sessions/sessi
 import { videoProgressRouter } from './modules/videoProgress/videoProgress.routes.js';
 import { courseProgressRouter } from './modules/progress/courseProgress.routes.js';
 import { collegeRouter } from './modules/colleges/college.routes.js';
+import { rosterRouter } from './modules/college/roster.routes.js';
 import { cohortRouter } from './modules/cohorts/cohort.routes.js';
 import { teamRouter } from './modules/teams/team.routes.js';
 import { problemStatementRouter } from './modules/problemStatements/problemStatement.routes.js';
@@ -54,6 +55,7 @@ export function createApp(): Express {
   app.use('/api/students', courseProgressRouter);
   app.use('/api/video-progress', videoProgressRouter);
   app.use('/api/colleges', collegeRouter);
+  app.use('/api/college', rosterRouter);
   app.use('/api/cohorts', cohortRouter);
   app.use('/api/teams', teamRouter);
   app.use('/api/problem-statements', problemStatementRouter);
